@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
 
@@ -30,10 +31,11 @@ type ServerConfig struct {
 
 // Server is the HTTP server that manages async jobs
 type Server struct {
-	config ServerConfig
-	jobs   map[string]*Job
-	mu     sync.RWMutex
-	mux    *http.ServeMux
+	config    ServerConfig
+	jobs      map[string]*Job
+	mu        sync.RWMutex
+	mux       *http.ServeMux
+	authOnce  sync.Once
 }
 
 // NewServer creates a new Server with routes registered
@@ -117,6 +119,15 @@ func (s *Server) Start() error {
 	fmt.Println()
 
 	return http.ListenAndServe(addr, s.cors(s.mux))
+}
+
+// ensureClaudeAuth runs Claude authentication once before the first job
+func (s *Server) ensureClaudeAuth() {
+	s.authOnce.Do(func() {
+		if token := os.Getenv("CLAUDE_TOKEN"); token != "" {
+			setupClaudeAuth(token)
+		}
+	})
 }
 
 // cors wraps a handler with permissive CORS headers

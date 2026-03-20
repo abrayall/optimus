@@ -71,11 +71,6 @@ func main() {
 		S3Endpoint: *s3Endpoint,
 	}
 
-	// Set up Claude authentication in background if CLAUDE_TOKEN is provided
-	if token := os.Getenv("CLAUDE_TOKEN"); token != "" {
-		go setupClaudeAuth(token)
-	}
-
 	srv := NewServer(cfg)
 	if err := srv.Start(); err != nil {
 		fmt.Fprintf(os.Stderr, "server error: %s\n", err)
