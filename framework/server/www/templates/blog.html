@@ -1,0 +1,41 @@
+{{ template "header" . }}
+
+    <!-- Blog Hero -->
+    <section class="blog-hero">
+        <div class="container">
+            <div class="section-header">
+                <span class="section-tag">Our Blog</span>
+                <h1>Insights & Strategies</h1>
+                <p>Expert tips on SEO, AEO, and digital growth to help your business dominate search.</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Blog Grid -->
+    <section class="section blog-section">
+        <div class="container">
+            <div class="blog-grid">
+                {{ range .Posts }}
+                <article class="blog-card">
+                    <div class="blog-card-image">
+                        <div class="blog-card-icon">
+                            <i class="fas {{ .Icon }}"></i>
+                        </div>
+                        <span class="blog-card-category">{{ .Category }}</span>
+                    </div>
+                    <div class="blog-card-content">
+                        <div class="blog-card-meta">
+                            <span><i class="fas fa-calendar-alt"></i> {{ .Date }}</span>
+                            <span><i class="fas fa-clock"></i> {{ .ReadTime }}</span>
+                        </div>
+                        <h2>{{ .Title }}</h2>
+                        <p>{{ .Excerpt }}</p>
+                        <a href="#" class="blog-card-link">Read More <i class="fas fa-arrow-right"></i></a>
+                    </div>
+                </article>
+                {{ end }}
+            </div>
+        </div>
+    </section>
+
+{{ template "footer" . }}

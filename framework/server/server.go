@@ -49,6 +49,14 @@ func NewServer(cfg ServerConfig) *Server {
 
 // registerRoutes sets up all API endpoints
 func (s *Server) registerRoutes() {
+	// Static assets
+	s.mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServerFS(staticFS)))
+
+	// Pages
+	s.mux.HandleFunc("GET /{$}", s.handleIndex)
+	s.mux.HandleFunc("GET /blog", s.handleBlog)
+
+	// API
 	s.mux.HandleFunc("GET /api/health", s.handleHealth)
 	s.mux.HandleFunc("GET /api/skills", s.handleListSkills)
 	s.mux.HandleFunc("POST /api/jobs", s.handleCreateJob)

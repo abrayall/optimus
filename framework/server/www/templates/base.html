@@ -1,0 +1,102 @@
+{{ define "header" }}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ if .Title }}{{ .Title }} - Optimus{{ else }}Optimus: Expert SEO &amp; AI Engine Optimization Services for Businesses{{ end }}</title>
+    <meta name="description" content="{{ if .Description }}{{ .Description }}{{ else }}Optimus is an SEO and AI Engine Optimization (AEO) agency that helps businesses get found by Google, ChatGPT, Perplexity, and other AI platforms. 150+ clients served, 300% avg. traffic increase. Get your free audit today.{{ end }}">
+    <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+</head>
+<body>
+
+    <!-- Header -->
+    <header id="header"{{ if .HeaderSolid }} class="scrolled"{{ end }}>
+        <nav class="nav-container">
+            <a href="/" class="logo">
+                <span class="logo-icon"><i class="fas fa-bolt"></i></span>
+                <span class="logo-text">Optimus</span>
+            </a>
+            <ul class="nav-links" id="navLinks">
+                <li><a href="/#services">Services</a></li>
+                <li><a href="/#process">Process</a></li>
+                <li><a href="/#pricing">Pricing</a></li>
+                <li><a href="/#faq">FAQ</a></li>
+                <li><a href="/blog">Blog</a></li>
+                <li><a href="/#contact" class="nav-cta">Get Started</a></li>
+            </ul>
+            <button class="mobile-toggle" id="mobileToggle" aria-label="Toggle menu">
+                <span></span>
+                <span></span>
+                <span></span>
+            </button>
+        </nav>
+    </header>
+{{ end }}
+
+{{ define "footer" }}
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-grid">
+                <div class="footer-brand">
+                    <a href="/" class="logo">
+                        <span class="logo-icon"><i class="fas fa-bolt"></i></span>
+                        <span class="logo-text">Optimus</span>
+                    </a>
+                    <p>Maximizing digital visibility through expert SEO and AI Engine Optimization strategies.</p>
+                    <div class="footer-social">
+                        <a href="#" aria-label="LinkedIn"><i class="fab fa-linkedin-in"></i></a>
+                        <a href="#" aria-label="Twitter"><i class="fab fa-x-twitter"></i></a>
+                        <a href="#" aria-label="Facebook"><i class="fab fa-facebook-f"></i></a>
+                        <a href="#" aria-label="Instagram"><i class="fab fa-instagram"></i></a>
+                    </div>
+                </div>
+                <div class="footer-links">
+                    <h4>Services</h4>
+                    <ul>
+                        <li><a href="/#services">Technical SEO</a></li>
+                        <li><a href="/#services">AI Engine Optimization</a></li>
+                        <li><a href="/#services">Content Strategy</a></li>
+                        <li><a href="/#services">Link Building</a></li>
+                        <li><a href="/#services">Local SEO</a></li>
+                    </ul>
+                </div>
+                <div class="footer-links">
+                    <h4>Company</h4>
+                    <ul>
+                        <li><a href="/#process">Our Process</a></li>
+                        <li><a href="/#pricing">Pricing</a></li>
+                        <li><a href="/#faq">FAQ</a></li>
+                        <li><a href="/blog">Blog</a></li>
+                        <li><a href="/#contact">Contact</a></li>
+                    </ul>
+                </div>
+                <div class="footer-links">
+                    <h4>Contact</h4>
+                    <ul>
+                        <li><a href="mailto:hello@optimus.com">hello@optimus.com</a></li>
+                        <li><a href="tel:+15551234567">(555) 123-4567</a></li>
+                    </ul>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; {{ .Year }} Optimus. All rights reserved.</p>
+                <p style="font-size: 0.75rem; opacity: 0.5; margin-top: 4px;">v{{ .Version }}</p>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Scroll to Top -->
+    <button class="scroll-top" id="scrollTop" aria-label="Scroll to top">
+        <i class="fas fa-arrow-up"></i>
+    </button>
+
+    <script src="/static/js/main.js"></script>
+</body>
+</html>
+{{ end }}
