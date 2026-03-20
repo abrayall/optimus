@@ -65,7 +65,7 @@ func init() {
 	rootCmd.Flags().MarkHidden("mcp")
 
 	// External API key flags
-	rootCmd.Flags().StringVar(&optimusSerpAPIKey, "serpapi-key", "", "SerpAPI API key for SERP position lookups")
+	rootCmd.Flags().StringVar(&optimusSerpAPIKey, "serp-api-key", "", "SerpAPI API key for SERP position lookups")
 	rootCmd.Flags().StringVar(&optimusGoogleAPIKey, "google-api-key", "", "Google API key for Custom Search")
 	rootCmd.Flags().StringVar(&optimusGoogleCSEID, "google-cse-id", "", "Google Custom Search Engine ID")
 	rootCmd.Flags().StringVar(&optimusGSCCreds, "gsc-credentials", "", "Path to Google Search Console service account JSON")

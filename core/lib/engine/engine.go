@@ -453,7 +453,7 @@ func writeMCPConfig(cfg Config) (string, error) {
 
 	// Forward API keys to MCP subprocess
 	if cfg.SerpAPIKey != "" {
-		mcpArgs = append(mcpArgs, "--serpapi-key", cfg.SerpAPIKey)
+		mcpArgs = append(mcpArgs, "--serp-api-key", cfg.SerpAPIKey)
 	}
 	if cfg.GoogleAPIKey != "" {
 		mcpArgs = append(mcpArgs, "--google-api-key", cfg.GoogleAPIKey)

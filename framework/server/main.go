@@ -4,9 +4,12 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"os/exec"
+	"strings"
 
 	"optimus/core/lib/engine"
 	"optimus/core/lib/mcp"
+	"optimus/core/lib/ui"
 )
 
 func main() {
@@ -24,13 +27,13 @@ func main() {
 	host := flag.String("host", envOrDefault("HOST", "0.0.0.0"), "Bind address")
 
 	// Publishing
-	publish := flag.String("publish", "local", "Publish destination (local, s3)")
-	s3Bucket := flag.String("s3-bucket", "", "S3 bucket name")
-	s3Region := flag.String("s3-region", "us-east-1", "S3 region")
-	s3Endpoint := flag.String("s3-endpoint", "", "Custom S3 endpoint URL")
+	publish := flag.String("publish", defaultPublish(), "Publish destination (local, s3)")
+	s3Bucket := flag.String("s3-bucket", os.Getenv("S3_BUCKET"), "S3 bucket name")
+	s3Region := flag.String("s3-region", envOrDefault("S3_REGION", "us-east-1"), "S3 region")
+	s3Endpoint := flag.String("s3-endpoint", os.Getenv("S3_ENDPOINT"), "Custom S3 endpoint URL")
 
 	// API keys
-	serpAPIKey := flag.String("serpapi-key", os.Getenv("SERPAPI_KEY"), "SerpAPI key")
+	serpAPIKey := flag.String("serp-api-key", os.Getenv("SERP_API_KEY"), "SerpAPI key")
 	googleAPIKey := flag.String("google-api-key", os.Getenv("GOOGLE_API_KEY"), "Google API key")
 	googleCSEID := flag.String("google-cse-id", os.Getenv("GOOGLE_CSE_ID"), "Google CSE ID")
 	gscCredentials := flag.String("gsc-credentials", os.Getenv("GSC_CREDENTIALS"), "Google Search Console credentials path")
@@ -66,6 +69,11 @@ func main() {
 		S3Endpoint: *s3Endpoint,
 	}
 
+	// Set up Claude authentication if CLAUDE_TOKEN is provided
+	if token := os.Getenv("CLAUDE_TOKEN"); token != "" {
+		setupClaudeAuth(token)
+	}
+
 	srv := NewServer(cfg)
 	if err := srv.Start(); err != nil {
 		fmt.Fprintf(os.Stderr, "server error: %s\n", err)
@@ -78,7 +86,7 @@ func parseMCPFlags() {
 	fs := flag.NewFlagSet("mcp", flag.ExitOnError)
 	fs.Bool("mcp", false, "")
 
-	serpAPIKey := fs.String("serpapi-key", "", "")
+	serpAPIKey := fs.String("serp-api-key", "", "")
 	googleAPIKey := fs.String("google-api-key", "", "")
 	googleCSEID := fs.String("google-cse-id", "", "")
 	gscCredentials := fs.String("gsc-credentials", "", "")
@@ -98,6 +106,32 @@ func parseMCPFlags() {
 		fmt.Fprintf(os.Stderr, "MCP server error: %s\n", err)
 		os.Exit(1)
 	}
+}
+
+// setupClaudeAuth checks if Claude is already authenticated, and if not, runs setup-token
+func setupClaudeAuth(token string) {
+	// Check if already authenticated
+	if exec.Command("claude", "auth", "status").Run() == nil {
+		ui.PrintSuccess("Claude already authenticated")
+		return
+	}
+
+	cmd := exec.Command("claude", "setup-token")
+	cmd.Stdin = strings.NewReader(token + "\n")
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		ui.PrintWarning("Claude auth setup failed: %s", err)
+	} else {
+		ui.PrintSuccess("Claude authenticated via setup-token")
+	}
+}
+
+// defaultPublish returns "s3" if AWS credentials are present, otherwise "local"
+func defaultPublish() string {
+	if os.Getenv("AWS_ACCESS_KEY_ID") != "" || os.Getenv("AWS_SECRET_ACCESS_KEY") != "" {
+		return "s3"
+	}
+	return "local"
 }
 
 // envOrDefault returns the env var value or a default
