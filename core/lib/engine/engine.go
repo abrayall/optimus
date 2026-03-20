@@ -6,6 +6,7 @@ import (
 	"embed"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/url"
 	"os"
 	"os/exec"
@@ -541,7 +542,8 @@ func runClaude(prompt string, skill *Skill, workDir string, logPath string, mcpC
 	)
 	cmd.Dir = workDir
 	cmd.Stdin = strings.NewReader(prompt)
-	cmd.Stderr = os.Stderr
+	var stderrBuf bytes.Buffer
+	cmd.Stderr = io.MultiWriter(os.Stderr, &stderrBuf)
 
 	logf("Command: claude -p --output-format stream-json --verbose --dangerously-skip-permissions --mcp-config %s", mcpConfigPath)
 
@@ -685,7 +687,11 @@ func runClaude(prompt string, skill *Skill, workDir string, logPath string, mcpC
 	sp.Finish()
 
 	if cmdErr != nil {
-		logf("[ERROR] Claude exited with error: %s", cmdErr)
+		stderrStr := strings.TrimSpace(stderrBuf.String())
+		logf("[ERROR] Claude exited with error: %s (stderr: %s)", cmdErr, stderrStr)
+		if stderrStr != "" {
+			return "", "", fmt.Errorf("claude exited with error: %w\nstderr: %s", cmdErr, stderrStr)
+		}
 		return "", "", fmt.Errorf("claude exited with error: %w", cmdErr)
 	}
 
