@@ -1,11 +1,13 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"os"
 	"os/exec"
 	"strings"
+	"time"
 
 	"optimus/core/lib/engine"
 	"optimus/core/lib/mcp"
@@ -69,9 +71,9 @@ func main() {
 		S3Endpoint: *s3Endpoint,
 	}
 
-	// Set up Claude authentication if CLAUDE_TOKEN is provided
+	// Set up Claude authentication in background if CLAUDE_TOKEN is provided
 	if token := os.Getenv("CLAUDE_TOKEN"); token != "" {
-		setupClaudeAuth(token)
+		go setupClaudeAuth(token)
 	}
 
 	srv := NewServer(cfg)
@@ -110,13 +112,19 @@ func parseMCPFlags() {
 
 // setupClaudeAuth checks if Claude is already authenticated, and if not, runs setup-token
 func setupClaudeAuth(token string) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
 	// Check if already authenticated
-	if exec.Command("claude", "auth", "status").Run() == nil {
+	if exec.CommandContext(ctx, "claude", "auth", "status").Run() == nil {
 		ui.PrintSuccess("Claude already authenticated")
 		return
 	}
 
-	cmd := exec.Command("claude", "setup-token")
+	ctx2, cancel2 := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel2()
+
+	cmd := exec.CommandContext(ctx2, "claude", "setup-token")
 	cmd.Stdin = strings.NewReader(token + "\n")
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {

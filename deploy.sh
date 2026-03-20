@@ -77,6 +77,7 @@ echo ""
 
 # Check/create DigitalOcean App
 APP_NAME="optimus-server"
+PROJECT_NAME="optimus"
 
 if [ -z "$TOKEN" ]; then
     echo -e "${GRAY}No DIGITALOCEAN_TOKEN set, skipping app deployment${NC}"
@@ -111,7 +112,7 @@ for app in data.get('apps', []):
 
         # Build app spec with env vars from GitHub secrets
         APP_SPEC=$(cat <<SPEC
-{"spec":{"name":"optimus-server","region":"nyc","features":["buildpack-stack=ubuntu-22"],"alerts":[{"rule":"DEPLOYMENT_FAILED"},{"rule":"DOMAIN_FAILED"}],"ingress":{"rules":[{"component":{"name":"optimus-server"},"match":{"path":{"prefix":"/"}}}]},"services":[{"name":"optimus-server","http_port":8080,"image":{"registry_type":"DOCR","registry":"abrayall","repository":"optimus-server","tag":"latest","deploy_on_push":{"enabled":true}},"health_check":{"http_path":"/api/health","initial_delay_seconds":10,"period_seconds":10,"timeout_seconds":3,"success_threshold":1,"failure_threshold":3},"instance_count":1,"instance_size_slug":"apps-s-1vcpu-1gb","envs":[{"key":"CLAUDE_TOKEN","value":"${CLAUDE_TOKEN}","type":"SECRET"},{"key":"AWS_ACCESS_KEY_ID","value":"${AWS_ACCESS_KEY_ID}","type":"SECRET"},{"key":"AWS_SECRET_ACCESS_KEY","value":"${AWS_SECRET_ACCESS_KEY}","type":"SECRET"},{"key":"S3_BUCKET","value":"${S3_BUCKET}","type":"GENERAL"},{"key":"S3_ENDPOINT","value":"${S3_ENDPOINT}","type":"GENERAL"},{"key":"SERP_API_KEY","value":"${SERP_API_KEY}","type":"SECRET"}]}]}}
+{"spec":{"name":"optimus-server","region":"nyc","features":["buildpack-stack=ubuntu-22"],"alerts":[{"rule":"DEPLOYMENT_FAILED"},{"rule":"DOMAIN_FAILED"}],"ingress":{"rules":[{"component":{"name":"optimus-server"},"match":{"path":{"prefix":"/"}}}]},"services":[{"name":"optimus-server","http_port":8080,"image":{"registry_type":"DOCR","registry":"abrayall","repository":"optimus-server","tag":"latest","deploy_on_push":{"enabled":true}},"health_check":{"http_path":"/api/health","initial_delay_seconds":10,"period_seconds":10,"timeout_seconds":3,"success_threshold":1,"failure_threshold":3},"instance_count":1,"instance_size_slug":"apps-s-1vcpu-0.5gb","envs":[{"key":"CLAUDE_TOKEN","value":"${CLAUDE_TOKEN}","type":"SECRET"},{"key":"AWS_ACCESS_KEY_ID","value":"${AWS_ACCESS_KEY_ID}","type":"SECRET"},{"key":"AWS_SECRET_ACCESS_KEY","value":"${AWS_SECRET_ACCESS_KEY}","type":"SECRET"},{"key":"S3_BUCKET","value":"${S3_BUCKET}","type":"GENERAL"},{"key":"S3_ENDPOINT","value":"${S3_ENDPOINT}","type":"GENERAL"},{"key":"SERP_API_KEY","value":"${SERP_API_KEY}","type":"SECRET"}]}]}}
 SPEC
 )
 
@@ -129,6 +130,32 @@ import sys, json
 data = json.load(sys.stdin)
 print(data.get('app', {}).get('id', ''))
 " 2>/dev/null)
+
+            # Assign app to project
+            if [ -n "$PROJECT_NAME" ]; then
+                PROJECT_ID=$(curl -s -X GET \
+                    -H "Authorization: Bearer $TOKEN" \
+                    -H "Content-Type: application/json" \
+                    "https://api.digitalocean.com/v2/projects" | python3 -c "
+import sys, json
+data = json.load(sys.stdin)
+for p in data.get('projects', []):
+    if p.get('name') == '$PROJECT_NAME':
+        print(p.get('id', ''))
+        break
+" 2>/dev/null)
+
+                if [ -n "$PROJECT_ID" ]; then
+                    curl -s -X POST \
+                        -H "Authorization: Bearer $TOKEN" \
+                        -H "Content-Type: application/json" \
+                        -d "{\"resources\":[\"do:app:$APP_ID\"]}" \
+                        "https://api.digitalocean.com/v2/projects/$PROJECT_ID/resources" > /dev/null
+                    echo -e "${GREEN}✓ Assigned to project '$PROJECT_NAME'${NC}"
+                else
+                    echo -e "${YELLOW}⚠ Project '$PROJECT_NAME' not found, app in default project${NC}"
+                fi
+            fi
 
             echo -e "${GRAY}  Waiting for deployment...${NC}"
 
