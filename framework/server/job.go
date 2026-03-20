@@ -84,9 +84,6 @@ func (s *Server) runJob(job *Job) {
 	fmt.Println()
 	ui.PrintInfo("Starting job %s [%s] %s", job.ID, job.Input.Skill, job.Input.URL)
 
-	// Ensure Claude is authenticated before first job
-	s.ensureClaudeAuth()
-
 	s.setStatus(job, "scraping")
 
 	targetURL := job.Input.URL

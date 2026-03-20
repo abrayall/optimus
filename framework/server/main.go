@@ -1,17 +1,12 @@
 package main
 
 import (
-	"context"
 	"flag"
 	"fmt"
 	"os"
-	"os/exec"
-	"strings"
-	"time"
 
 	"optimus/core/lib/engine"
 	"optimus/core/lib/mcp"
-	"optimus/core/lib/ui"
 )
 
 func main() {
@@ -102,30 +97,6 @@ func parseMCPFlags() {
 	if err := mcp.RunServer(); err != nil {
 		fmt.Fprintf(os.Stderr, "MCP server error: %s\n", err)
 		os.Exit(1)
-	}
-}
-
-// setupClaudeAuth checks if Claude is already authenticated, and if not, runs setup-token
-func setupClaudeAuth(token string) {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-
-	// Check if already authenticated
-	if exec.CommandContext(ctx, "claude", "auth", "status").Run() == nil {
-		ui.PrintSuccess("Claude already authenticated")
-		return
-	}
-
-	ctx2, cancel2 := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel2()
-
-	cmd := exec.CommandContext(ctx2, "claude", "setup-token")
-	cmd.Stdin = strings.NewReader(token + "\n")
-	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
-		ui.PrintWarning("Claude auth setup failed: %s", err)
-	} else {
-		ui.PrintSuccess("Claude authenticated via setup-token")
 	}
 }
 

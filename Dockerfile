@@ -22,6 +22,10 @@ RUN apk --no-cache add ca-certificates chromium nodejs npm bash \
 
 ENV CHROME_PATH=/usr/bin/chromium-browser
 
+# Pre-configure Claude Code onboarding so it doesn't prompt
+RUN echo '{"hasCompletedOnboarding":true}' > /root/.claude.json \
+    && mkdir -p /root/.claude
+
 COPY --from=builder /optimus-server /usr/local/bin/optimus-server
 
 EXPOSE 8080
