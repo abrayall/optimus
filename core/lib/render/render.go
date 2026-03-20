@@ -15,18 +15,24 @@ import (
 type Config struct {
 	Report    *engine.Report
 	OutputDir string
+	CSS       string
+	LogoSVG   string
 }
 
 // ScorecardConfig holds scorecard renderer configuration
 type ScorecardConfig struct {
 	Scorecard *engine.Scorecard
 	OutputDir string
+	CSS       string
+	LogoSVG   string
 }
 
 // BacklinksConfig holds backlinks renderer configuration
 type BacklinksConfig struct {
 	Strategy  *engine.BacklinkStrategy
 	OutputDir string
+	CSS       string
+	LogoSVG   string
 }
 
 // FilesConfig holds files renderer configuration
@@ -35,12 +41,41 @@ type FilesConfig struct {
 	SiteURL   string
 	SkillName string
 	OutputDir string
+	CSS       string
+	LogoSVG   string
 }
 
 // Result holds renderer output
 type Result struct {
 	JSONPath string
 	HTMLPath string
+}
+
+// Internal template data wrappers that embed the data types and add CSS/LogoSVG
+type reportData struct {
+	*engine.Report
+	CSS     template.CSS
+	LogoSVG template.HTML
+}
+
+type scorecardData struct {
+	*engine.Scorecard
+	CSS     template.CSS
+	LogoSVG template.HTML
+}
+
+type backlinksData struct {
+	*engine.BacklinkStrategy
+	CSS     template.CSS
+	LogoSVG template.HTML
+}
+
+type filesData struct {
+	Files     []engine.FileEntry
+	SiteURL   string
+	SkillName string
+	CSS       template.CSS
+	LogoSVG   template.HTML
 }
 
 // Generate creates both JSON and HTML reports
@@ -58,7 +93,7 @@ func Generate(cfg Config) (*Result, error) {
 	}
 
 	// Write HTML report
-	if err := writeHTML(cfg.Report, htmlPath); err != nil {
+	if err := writeHTML(cfg.Report, cfg.CSS, cfg.LogoSVG, htmlPath); err != nil {
 		return nil, fmt.Errorf("writing HTML report: %w", err)
 	}
 
@@ -112,7 +147,7 @@ func GenerateScorecard(cfg ScorecardConfig) (*Result, error) {
 	}
 
 	// Write HTML
-	if err := writeScorecardHTML(cfg.Scorecard, htmlPath); err != nil {
+	if err := writeScorecardHTML(cfg.Scorecard, cfg.CSS, cfg.LogoSVG, htmlPath); err != nil {
 		return nil, fmt.Errorf("writing scorecard HTML: %w", err)
 	}
 
@@ -141,7 +176,7 @@ func GenerateBacklinks(cfg BacklinksConfig) (*Result, error) {
 	}
 
 	// Write HTML
-	if err := writeBacklinksHTML(cfg.Strategy, htmlPath); err != nil {
+	if err := writeBacklinksHTML(cfg.Strategy, cfg.CSS, cfg.LogoSVG, htmlPath); err != nil {
 		return nil, fmt.Errorf("writing backlinks HTML: %w", err)
 	}
 
@@ -151,7 +186,7 @@ func GenerateBacklinks(cfg BacklinksConfig) (*Result, error) {
 	}, nil
 }
 
-func writeBacklinksHTML(bs *engine.BacklinkStrategy, path string) error {
+func writeBacklinksHTML(bs *engine.BacklinkStrategy, css, logoSVG, path string) error {
 	tmpl, err := template.New("backlinks").Funcs(template.FuncMap{
 		"strategyIcon":  strategyIcon,
 		"difficultyTag": difficultyTag,
@@ -168,7 +203,12 @@ func writeBacklinksHTML(bs *engine.BacklinkStrategy, path string) error {
 	}
 	defer f.Close()
 
-	return tmpl.Execute(f, bs)
+	data := backlinksData{
+		BacklinkStrategy: bs,
+		CSS:              template.CSS(css),
+		LogoSVG:          template.HTML(logoSVG),
+	}
+	return tmpl.Execute(f, data)
 }
 
 func strategyIcon(strategy string) string {
@@ -199,9 +239,9 @@ func strategyIcon(strategy string) string {
 func difficultyTag(difficulty string) string {
 	switch difficulty {
 	case "easy":
-		return "#27C93F"
+		return "#ADEEE3"
 	case "medium":
-		return "#F59E0B"
+		return "#0090C1"
 	case "hard":
 		return "#EF4444"
 	default:
@@ -212,17 +252,17 @@ func difficultyTag(difficulty string) string {
 func impactTag(impact string) string {
 	switch impact {
 	case "high":
-		return "#27C93F"
+		return "#ADEEE3"
 	case "medium":
-		return "#F59E0B"
+		return "#0090C1"
 	case "low":
-		return "#3B82F6"
+		return "#046E8F"
 	default:
 		return "#888888"
 	}
 }
 
-func writeScorecardHTML(sc *engine.Scorecard, path string) error {
+func writeScorecardHTML(sc *engine.Scorecard, css, logoSVG, path string) error {
 	tmpl, err := template.New("scorecard").Funcs(template.FuncMap{
 		"scorecardColor": scorecardColor,
 		"scorecardLabel": scorecardLabel,
@@ -238,17 +278,22 @@ func writeScorecardHTML(sc *engine.Scorecard, path string) error {
 	}
 	defer f.Close()
 
-	return tmpl.Execute(f, sc)
+	data := scorecardData{
+		Scorecard: sc,
+		CSS:       template.CSS(css),
+		LogoSVG:   template.HTML(logoSVG),
+	}
+	return tmpl.Execute(f, data)
 }
 
 func scorecardColor(score int) string {
 	switch {
 	case score >= 80:
-		return "#27C93F" // green
+		return "#ADEEE3" // mint
 	case score >= 60:
-		return "#F59E0B" // amber
+		return "#0090C1" // blue
 	case score >= 40:
-		return "#F97316" // orange
+		return "#046E8F" // teal
 	default:
 		return "#EF4444" // red
 	}
@@ -284,7 +329,14 @@ func writeFilesHTML(cfg FilesConfig, path string) error {
 	}
 	defer f.Close()
 
-	return tmpl.Execute(f, cfg)
+	data := filesData{
+		Files:     cfg.Files,
+		SiteURL:   cfg.SiteURL,
+		SkillName: cfg.SkillName,
+		CSS:       template.CSS(cfg.CSS),
+		LogoSVG:   template.HTML(cfg.LogoSVG),
+	}
+	return tmpl.Execute(f, data)
 }
 
 // writeJSON writes the report as formatted JSON
@@ -297,7 +349,7 @@ func writeJSON(report *engine.Report, path string) error {
 }
 
 // writeHTML generates an HTML report
-func writeHTML(report *engine.Report, path string) error {
+func writeHTML(report *engine.Report, css, logoSVG, path string) error {
 	tmpl, err := template.New("report").Funcs(template.FuncMap{
 		"priorityColor": priorityColor,
 		"priorityIcon":  priorityIcon,
@@ -316,7 +368,12 @@ func writeHTML(report *engine.Report, path string) error {
 	}
 	defer f.Close()
 
-	return tmpl.Execute(f, report)
+	data := reportData{
+		Report:  report,
+		CSS:     template.CSS(css),
+		LogoSVG: template.HTML(logoSVG),
+	}
+	return tmpl.Execute(f, data)
 }
 
 func priorityColor(priority string) string {
@@ -326,9 +383,9 @@ func priorityColor(priority string) string {
 	case "high":
 		return "#F97316"
 	case "medium":
-		return "#F59E0B"
+		return "#0090C1"
 	case "low":
-		return "#3B82F6"
+		return "#ADEEE3"
 	default:
 		return "#888888"
 	}
@@ -382,15 +439,17 @@ var htmlTemplate = `<!DOCTYPE html>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Optimus SEO Report — {{.SiteURL}}</title>
+    <style>{{.CSS}}</style>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: #0f172a;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--dark, #022F40);
             color: #e2e8f0;
             line-height: 1.6;
+            overflow-x: auto;
         }
-        .container {
+        .report-container {
             max-width: 1200px;
             margin: 0 auto;
             padding: 2rem;
@@ -398,22 +457,36 @@ var htmlTemplate = `<!DOCTYPE html>
         header {
             text-align: center;
             padding: 3rem 0;
-            border-bottom: 1px solid #1e293b;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
             margin-bottom: 2rem;
+        }
+        .logo-row {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+        .logo-row svg { width: 36px; height: 36px; }
+        .logo-text {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #fff;
         }
         header h1 {
             font-size: 2.5rem;
-            background: linear-gradient(135deg, #f59e0b, #f97316);
+            background: linear-gradient(135deg, var(--primary, #046E8F), var(--blue, #0090C1));
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
+            background-clip: text;
             margin-bottom: 0.5rem;
         }
         header .site-url {
-            color: #94a3b8;
+            color: rgba(255,255,255,0.7);
             font-size: 1.1rem;
         }
         header .meta {
-            color: #64748b;
+            color: rgba(255,255,255,0.5);
             font-size: 0.9rem;
             margin-top: 0.5rem;
         }
@@ -426,27 +499,27 @@ var htmlTemplate = `<!DOCTYPE html>
             margin-bottom: 2rem;
         }
         .summary-card {
-            background: #1e293b;
+            background: var(--dark-gray, #183446);
             border-radius: 12px;
             padding: 1.5rem;
             text-align: center;
-            border: 1px solid #334155;
+            border: 1px solid rgba(255,255,255,0.1);
         }
         .summary-card .number {
             font-size: 2.5rem;
             font-weight: 700;
         }
         .summary-card .label {
-            color: #94a3b8;
+            color: rgba(255,255,255,0.7);
             font-size: 0.85rem;
             text-transform: uppercase;
             letter-spacing: 0.05em;
         }
-        .summary-card.total .number { color: #f59e0b; }
+        .summary-card.total .number { color: var(--blue, #0090C1); }
         .summary-card.critical .number { color: #ef4444; }
         .summary-card.high .number { color: #f97316; }
-        .summary-card.medium .number { color: #f59e0b; }
-        .summary-card.low .number { color: #3b82f6; }
+        .summary-card.medium .number { color: var(--blue, #0090C1); }
+        .summary-card.low .number { color: var(--mint, #ADEEE3); }
 
         /* Filters */
         .filters {
@@ -458,17 +531,26 @@ var htmlTemplate = `<!DOCTYPE html>
         .filter-btn {
             padding: 0.5rem 1rem;
             border-radius: 8px;
-            border: 1px solid #334155;
-            background: #1e293b;
-            color: #94a3b8;
+            border: 1px solid rgba(255,255,255,0.1);
+            background: var(--dark-gray, #183446);
+            color: rgba(255,255,255,0.7);
             cursor: pointer;
             font-size: 0.85rem;
             transition: all 0.2s;
+            font-family: inherit;
         }
         .filter-btn:hover, .filter-btn.active {
-            background: #334155;
-            color: #f59e0b;
-            border-color: #f59e0b;
+            background: rgba(255,255,255,0.1);
+            color: var(--blue, #0090C1);
+            border-color: var(--blue, #0090C1);
+        }
+        .filter-dot {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            margin-right: 6px;
+            vertical-align: middle;
         }
 
         /* Recommendations */
@@ -478,14 +560,14 @@ var htmlTemplate = `<!DOCTYPE html>
             gap: 1rem;
         }
         .rec-card {
-            background: #1e293b;
+            background: var(--dark-gray, #183446);
             border-radius: 12px;
-            border: 1px solid #334155;
+            border: 1px solid rgba(255,255,255,0.1);
             overflow: hidden;
             transition: border-color 0.2s;
         }
         .rec-card:hover {
-            border-color: #475569;
+            border-color: rgba(255,255,255,0.2);
         }
         .rec-header {
             display: flex;
@@ -521,8 +603,8 @@ var htmlTemplate = `<!DOCTYPE html>
             letter-spacing: 0.05em;
             white-space: nowrap;
             width: fit-content;
-            background: #334155;
-            color: #94a3b8;
+            background: rgba(255,255,255,0.1);
+            color: rgba(255,255,255,0.7);
         }
         .rec-issue {
             flex: 1;
@@ -530,7 +612,7 @@ var htmlTemplate = `<!DOCTYPE html>
         }
         .rec-url {
             font-size: 0.8rem;
-            color: #64748b;
+            color: rgba(255,255,255,0.5);
             max-width: 200px;
             overflow: hidden;
             text-overflow: ellipsis;
@@ -539,7 +621,7 @@ var htmlTemplate = `<!DOCTYPE html>
         .rec-details {
             display: none;
             padding: 0 1.5rem 1.5rem;
-            border-top: 1px solid #334155;
+            border-top: 1px solid rgba(255,255,255,0.1);
         }
         .rec-card.open .rec-details {
             display: block;
@@ -551,12 +633,12 @@ var htmlTemplate = `<!DOCTYPE html>
             font-size: 0.8rem;
             text-transform: uppercase;
             letter-spacing: 0.05em;
-            color: #64748b;
+            color: rgba(255,255,255,0.5);
             margin-bottom: 0.5rem;
         }
         .current-text {
-            background: #0f172a;
-            border: 1px solid #334155;
+            background: var(--dark, #022F40);
+            border: 1px solid rgba(255,255,255,0.1);
             border-left: 3px solid #ef4444;
             padding: 0.75rem 1rem;
             border-radius: 6px;
@@ -566,50 +648,50 @@ var htmlTemplate = `<!DOCTYPE html>
             word-break: break-word;
         }
         .suggestion {
-            background: #0f172a;
-            border: 1px solid #334155;
-            border-left: 3px solid #27c93f;
+            background: var(--dark, #022F40);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-left: 3px solid var(--mint, #ADEEE3);
             padding: 0.75rem 1rem;
             border-radius: 6px;
             font-size: 0.9rem;
-            color: #4ade80;
+            color: var(--mint, #ADEEE3);
             margin-bottom: 0.5rem;
             word-break: break-word;
         }
         .suggestion-number {
-            color: #64748b;
+            color: rgba(255,255,255,0.5);
             font-size: 0.75rem;
             margin-right: 0.5rem;
         }
         .impact {
-            background: #0f172a;
-            border: 1px solid #334155;
-            border-left: 3px solid #3b82f6;
+            background: var(--dark, #022F40);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-left: 3px solid var(--blue, #0090C1);
             padding: 0.75rem 1rem;
             border-radius: 6px;
             font-size: 0.9rem;
-            color: #93c5fd;
+            color: #7dd3fc;
         }
         .chevron {
             transition: transform 0.2s;
-            color: #64748b;
+            color: rgba(255,255,255,0.5);
         }
         .rec-card.open .chevron {
             transform: rotate(90deg);
         }
 
         /* Footer */
-        footer {
+        .report-footer {
             text-align: center;
             padding: 2rem 0;
             margin-top: 2rem;
-            border-top: 1px solid #1e293b;
-            color: #475569;
+            border-top: 1px solid rgba(255,255,255,0.1);
+            color: rgba(255,255,255,0.3);
             font-size: 0.85rem;
         }
 
         @media (max-width: 768px) {
-            .container { padding: 1rem; }
+            .report-container { padding: 1rem; }
             header h1 { font-size: 1.8rem; }
             .rec-header { flex-wrap: wrap; }
             .rec-url { max-width: 100%; }
@@ -617,9 +699,13 @@ var htmlTemplate = `<!DOCTYPE html>
     </style>
 </head>
 <body>
-    <div class="container">
+    <div class="report-container">
         <header>
-            <h1>⚡ Optimus SEO Report</h1>
+            <div class="logo-row">
+                {{.LogoSVG}}
+                <span class="logo-text">Optimus</span>
+            </div>
+            <h1>SEO Report</h1>
             <div class="site-url">{{.SiteURL}}</div>
             <div class="meta">Analyzed {{.AnalyzedAt}} · {{.PagesAnalyzed}} pages scanned</div>
         </header>
@@ -649,10 +735,10 @@ var htmlTemplate = `<!DOCTYPE html>
 
         <div class="filters">
             <button class="filter-btn active" onclick="filterRecs('all')">All</button>
-            <button class="filter-btn" onclick="filterRecs('critical')">🔴 Critical</button>
-            <button class="filter-btn" onclick="filterRecs('high')">🟠 High</button>
-            <button class="filter-btn" onclick="filterRecs('medium')">🟡 Medium</button>
-            <button class="filter-btn" onclick="filterRecs('low')">🔵 Low</button>
+            <button class="filter-btn" onclick="filterRecs('critical')"><span class="filter-dot" style="background:#EF4444"></span>Critical</button>
+            <button class="filter-btn" onclick="filterRecs('high')"><span class="filter-dot" style="background:#F97316"></span>High</button>
+            <button class="filter-btn" onclick="filterRecs('medium')"><span class="filter-dot" style="background:#0090C1"></span>Medium</button>
+            <button class="filter-btn" onclick="filterRecs('low')"><span class="filter-dot" style="background:#ADEEE3"></span>Low</button>
         </div>
 
         <div class="recommendations">
@@ -698,9 +784,9 @@ var htmlTemplate = `<!DOCTYPE html>
             {{end}}
         </div>
 
-        <footer>
-            Generated by Optimus SEO Analyzer · Powered by AI
-        </footer>
+        <div class="report-footer">
+            Generated by <strong>Optimus</strong>
+        </div>
     </div>
 
     <script>
@@ -710,7 +796,7 @@ var htmlTemplate = `<!DOCTYPE html>
 
         function filterRecs(priority) {
             document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active'));
-            event.target.classList.add('active');
+            event.target.closest('.filter-btn').classList.add('active');
 
             document.querySelectorAll('.rec-card').forEach(card => {
                 if (priority === 'all' || card.dataset.priority === priority) {
@@ -736,15 +822,17 @@ var filesHTMLTemplate = `<!DOCTYPE html>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Optimus {{.SkillName}} — {{.SiteURL}}</title>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <style>{{.CSS}}</style>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: #0f172a;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--dark, #022F40);
             color: #e2e8f0;
             line-height: 1.6;
+            overflow-x: auto;
         }
-        .container {
+        .report-container {
             max-width: 1000px;
             margin: 0 auto;
             padding: 2rem;
@@ -752,22 +840,36 @@ var filesHTMLTemplate = `<!DOCTYPE html>
         header {
             text-align: center;
             padding: 3rem 0;
-            border-bottom: 1px solid #1e293b;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
             margin-bottom: 2rem;
+        }
+        .logo-row {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+        .logo-row svg { width: 36px; height: 36px; }
+        .logo-text {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #fff;
         }
         header h1 {
             font-size: 2.5rem;
-            background: linear-gradient(135deg, #f59e0b, #f97316);
+            background: linear-gradient(135deg, var(--primary, #046E8F), var(--blue, #0090C1));
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
+            background-clip: text;
             margin-bottom: 0.5rem;
         }
         header .site-url {
-            color: #94a3b8;
+            color: rgba(255,255,255,0.7);
             font-size: 1.1rem;
         }
         header .meta {
-            color: #64748b;
+            color: rgba(255,255,255,0.5);
             font-size: 0.9rem;
             margin-top: 0.5rem;
         }
@@ -776,7 +878,7 @@ var filesHTMLTemplate = `<!DOCTYPE html>
         .tabs {
             display: flex;
             gap: 0.25rem;
-            border-bottom: 2px solid #1e293b;
+            border-bottom: 2px solid rgba(255,255,255,0.1);
             margin-bottom: 2rem;
             flex-wrap: wrap;
         }
@@ -784,7 +886,7 @@ var filesHTMLTemplate = `<!DOCTYPE html>
             padding: 0.75rem 1.25rem;
             background: transparent;
             border: none;
-            color: #94a3b8;
+            color: rgba(255,255,255,0.7);
             cursor: pointer;
             font-size: 0.9rem;
             font-family: inherit;
@@ -795,11 +897,11 @@ var filesHTMLTemplate = `<!DOCTYPE html>
         }
         .tab:hover {
             color: #e2e8f0;
-            background: #1e293b;
+            background: var(--dark-gray, #183446);
         }
         .tab.active {
-            color: #f59e0b;
-            border-bottom-color: #f59e0b;
+            color: var(--blue, #0090C1);
+            border-bottom-color: var(--blue, #0090C1);
         }
 
         /* Content panels */
@@ -812,16 +914,16 @@ var filesHTMLTemplate = `<!DOCTYPE html>
 
         /* Rendered markdown */
         .markdown-body {
-            background: #1e293b;
+            background: var(--dark-gray, #183446);
             border-radius: 12px;
-            border: 1px solid #334155;
+            border: 1px solid rgba(255,255,255,0.1);
             padding: 2rem;
         }
         .markdown-body h1 {
             font-size: 2rem;
             margin-bottom: 1rem;
             padding-bottom: 0.5rem;
-            border-bottom: 1px solid #334155;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
             color: #f8fafc;
         }
         .markdown-body h2 {
@@ -849,27 +951,27 @@ var filesHTMLTemplate = `<!DOCTYPE html>
             color: #cbd5e1;
         }
         .markdown-body a {
-            color: #f59e0b;
+            color: var(--blue, #0090C1);
             text-decoration: none;
         }
         .markdown-body a:hover {
             text-decoration: underline;
         }
         .markdown-body blockquote {
-            border-left: 3px solid #f59e0b;
+            border-left: 3px solid var(--blue, #0090C1);
             padding-left: 1rem;
             margin-bottom: 1rem;
-            color: #94a3b8;
+            color: rgba(255,255,255,0.7);
         }
         .markdown-body code {
-            background: #0f172a;
+            background: var(--dark, #022F40);
             padding: 0.15rem 0.4rem;
             border-radius: 4px;
             font-size: 0.9em;
-            color: #f59e0b;
+            color: var(--blue, #0090C1);
         }
         .markdown-body pre {
-            background: #0f172a;
+            background: var(--dark, #022F40);
             padding: 1rem;
             border-radius: 8px;
             overflow-x: auto;
@@ -884,37 +986,41 @@ var filesHTMLTemplate = `<!DOCTYPE html>
         }
         .markdown-body hr {
             border: none;
-            border-top: 1px solid #334155;
+            border-top: 1px solid rgba(255,255,255,0.1);
             margin: 2rem 0;
         }
 
         .filename {
             font-size: 0.8rem;
-            color: #64748b;
+            color: rgba(255,255,255,0.5);
             margin-bottom: 0.75rem;
             font-family: monospace;
         }
 
         /* Footer */
-        footer {
+        .report-footer {
             text-align: center;
             padding: 2rem 0;
             margin-top: 2rem;
-            border-top: 1px solid #1e293b;
-            color: #475569;
+            border-top: 1px solid rgba(255,255,255,0.1);
+            color: rgba(255,255,255,0.3);
             font-size: 0.85rem;
         }
 
         @media (max-width: 768px) {
-            .container { padding: 1rem; }
+            .report-container { padding: 1rem; }
             header h1 { font-size: 1.8rem; }
             .markdown-body { padding: 1rem; }
         }
     </style>
 </head>
 <body>
-    <div class="container">
+    <div class="report-container">
         <header>
+            <div class="logo-row">
+                {{.LogoSVG}}
+                <span class="logo-text">Optimus</span>
+            </div>
             <h1>{{.SkillName}}</h1>
             <div class="site-url">{{.SiteURL}}</div>
             <div class="meta">{{len .Files}} files generated</div>
@@ -933,9 +1039,9 @@ var filesHTMLTemplate = `<!DOCTYPE html>
         </div>
         {{end}}
 
-        <footer>
-            Generated by Optimus · Powered by AI
-        </footer>
+        <div class="report-footer">
+            Generated by <strong>Optimus</strong>
+        </div>
     </div>
 
     <script>
@@ -966,15 +1072,17 @@ var scorecardHTMLTemplate = `<!DOCTYPE html>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Optimus Rank Scorecard — {{.SiteURL}}</title>
+    <style>{{.CSS}}</style>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: #0f172a;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--dark, #022F40);
             color: #e2e8f0;
             line-height: 1.6;
+            overflow-x: auto;
         }
-        .container {
+        .report-container {
             max-width: 1000px;
             margin: 0 auto;
             padding: 2rem;
@@ -982,18 +1090,32 @@ var scorecardHTMLTemplate = `<!DOCTYPE html>
         header {
             text-align: center;
             padding: 3rem 0 2rem;
-            border-bottom: 1px solid #1e293b;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
             margin-bottom: 2rem;
+        }
+        .logo-row {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+        .logo-row svg { width: 36px; height: 36px; }
+        .logo-text {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #fff;
         }
         header h1 {
             font-size: 2.5rem;
-            background: linear-gradient(135deg, #f59e0b, #f97316);
+            background: linear-gradient(135deg, var(--primary, #046E8F), var(--blue, #0090C1));
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
+            background-clip: text;
             margin-bottom: 0.5rem;
         }
-        header .site-url { color: #94a3b8; font-size: 1.1rem; }
-        header .meta { color: #64748b; font-size: 0.9rem; margin-top: 0.5rem; }
+        header .site-url { color: rgba(255,255,255,0.7); font-size: 1.1rem; }
+        header .meta { color: rgba(255,255,255,0.5); font-size: 0.9rem; margin-top: 0.5rem; }
 
         /* Overall score gauge */
         .gauge-wrap {
@@ -1019,7 +1141,7 @@ var scorecardHTMLTemplate = `<!DOCTYPE html>
             position: absolute;
             bottom: 38px;
             font-size: 0.85rem;
-            color: #94a3b8;
+            color: rgba(255,255,255,0.7);
             z-index: 1;
         }
 
@@ -1040,13 +1162,13 @@ var scorecardHTMLTemplate = `<!DOCTYPE html>
         .meter-label {
             width: 140px;
             font-size: 0.9rem;
-            color: #94a3b8;
+            color: rgba(255,255,255,0.7);
             flex-shrink: 0;
         }
         .meter-bar {
             flex: 1;
             height: 24px;
-            background: #1e293b;
+            background: var(--dark-gray, #183446);
             border-radius: 12px;
             overflow: hidden;
             margin: 0 1rem;
@@ -1074,19 +1196,19 @@ var scorecardHTMLTemplate = `<!DOCTYPE html>
             font-size: 0.75rem;
             text-transform: uppercase;
             letter-spacing: 0.05em;
-            color: #64748b;
+            color: rgba(255,255,255,0.5);
             padding: 0.5rem 0.75rem;
-            border-bottom: 1px solid #1e293b;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
         }
         td {
             padding: 0.6rem 0.75rem;
-            border-bottom: 1px solid #1e293b;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
             font-size: 0.9rem;
         }
         tr:last-child td { border-bottom: none; }
         .badge-yes {
-            background: #27C93F22;
-            color: #27C93F;
+            background: rgba(173,238,227,0.15);
+            color: var(--mint, #ADEEE3);
             padding: 0.15rem 0.5rem;
             border-radius: 4px;
             font-size: 0.8rem;
@@ -1105,7 +1227,7 @@ var scorecardHTMLTemplate = `<!DOCTYPE html>
         .mini-meter {
             width: 80px;
             height: 8px;
-            background: #1e293b;
+            background: var(--dark-gray, #183446);
             border-radius: 4px;
             overflow: hidden;
             display: inline-block;
@@ -1129,22 +1251,22 @@ var scorecardHTMLTemplate = `<!DOCTYPE html>
             content: "•";
             position: absolute;
             left: 0;
-            color: #f59e0b;
+            color: var(--blue, #0090C1);
             font-weight: bold;
         }
 
         /* Footer */
-        footer {
+        .report-footer {
             text-align: center;
             padding: 2rem 0;
             margin-top: 2rem;
-            border-top: 1px solid #1e293b;
-            color: #475569;
+            border-top: 1px solid rgba(255,255,255,0.1);
+            color: rgba(255,255,255,0.3);
             font-size: 0.85rem;
         }
 
         @media (max-width: 768px) {
-            .container { padding: 1rem; }
+            .report-container { padding: 1rem; }
             header h1 { font-size: 1.8rem; }
             .gauge { width: 150px; height: 150px; }
             .gauge .score { font-size: 2.5rem; }
@@ -1153,8 +1275,12 @@ var scorecardHTMLTemplate = `<!DOCTYPE html>
     </style>
 </head>
 <body>
-    <div class="container">
+    <div class="report-container">
         <header>
+            <div class="logo-row">
+                {{.LogoSVG}}
+                <span class="logo-text">Optimus</span>
+            </div>
             <h1>Rank Scorecard</h1>
             <div class="site-url">{{.SiteURL}}</div>
             <div class="meta">Analyzed {{.AnalyzedAt}} · {{.PagesAnalyzed}} pages</div>
@@ -1163,7 +1289,7 @@ var scorecardHTMLTemplate = `<!DOCTYPE html>
         <!-- Overall Score Gauge -->
         <div class="gauge-wrap">
             <div class="gauge" style="background: conic-gradient({{scorecardColor .OverallScore}} {{degrees .OverallScore}}deg, {{scorecardColor .OverallScore}}22 {{degrees .OverallScore}}deg); padding: 12px;">
-                <div style="background: #0f172a; width: 100%; height: 100%; border-radius: 50%; display: flex; flex-direction: column; align-items: center; justify-content: center;">
+                <div style="background: var(--dark, #022F40); width: 100%; height: 100%; border-radius: 50%; display: flex; flex-direction: column; align-items: center; justify-content: center;">
                     <div class="score" style="color: {{scorecardColor .OverallScore}}">{{.OverallScore}}</div>
                     <div class="score-label">out of 100</div>
                 </div>
@@ -1295,9 +1421,9 @@ var scorecardHTMLTemplate = `<!DOCTYPE html>
         </div>
         {{end}}
 
-        <footer>
-            Generated by Optimus Rank Scorecard · Powered by AI
-        </footer>
+        <div class="report-footer">
+            Generated by <strong>Optimus</strong>
+        </div>
     </div>
 </body>
 </html>`
@@ -1308,44 +1434,84 @@ var backlinksHTMLTemplate = `<!DOCTYPE html>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Backlink Strategy — {{.SiteURL}}</title>
+    <style>{{.CSS}}</style>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0a0a0a; color: #e0e0e0; }
-        .container { max-width: 960px; margin: 0 auto; padding: 32px 24px; }
-        h1 { font-size: 1.6rem; color: #fff; margin-bottom: 4px; }
-        .subtitle { color: #888; font-size: 0.9rem; margin-bottom: 32px; }
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--dark, #022F40);
+            color: #e2e8f0;
+            overflow-x: auto;
+        }
+        .report-container { max-width: 960px; margin: 0 auto; padding: 32px 24px; }
+
+        header {
+            text-align: center;
+            padding: 2rem 0;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            margin-bottom: 2rem;
+        }
+        .logo-row {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+        .logo-row svg { width: 36px; height: 36px; }
+        .logo-text {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #fff;
+        }
+        header h1 {
+            font-size: 2rem;
+            background: linear-gradient(135deg, var(--primary, #046E8F), var(--blue, #0090C1));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 0.5rem;
+        }
+        .subtitle { color: rgba(255,255,255,0.5); font-size: 0.9rem; }
+
         .section { margin-bottom: 32px; }
-        h2 { font-size: 1.1rem; color: #ccc; margin-bottom: 16px; border-bottom: 1px solid #222; padding-bottom: 8px; }
+        .section h2 { font-size: 1.1rem; color: rgba(255,255,255,0.7); margin-bottom: 16px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 8px; }
 
         /* Summary cards */
         .summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin-bottom: 32px; }
-        .summary-card { background: #151515; border: 1px solid #222; border-radius: 8px; padding: 16px; text-align: center; }
+        .summary-card { background: var(--dark-gray, #183446); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 16px; text-align: center; }
         .summary-card .value { font-size: 1.8rem; font-weight: 700; color: #fff; }
-        .summary-card .label { font-size: 0.75rem; color: #888; margin-top: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
+        .summary-card .label { font-size: 0.75rem; color: rgba(255,255,255,0.5); margin-top: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
 
         /* Opportunity cards */
-        .opp-card { background: #151515; border: 1px solid #222; border-radius: 8px; padding: 20px; margin-bottom: 12px; }
+        .opp-card { background: var(--dark-gray, #183446); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 20px; margin-bottom: 12px; }
         .opp-header { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
         .opp-icon { font-size: 1.4rem; }
         .opp-title { font-size: 1rem; font-weight: 600; color: #fff; flex: 1; }
-        .opp-num { font-size: 0.75rem; color: #555; }
+        .opp-num { font-size: 0.75rem; color: rgba(255,255,255,0.35); }
         .opp-tags { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
         .tag { font-size: 0.7rem; padding: 3px 10px; border-radius: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.3px; }
-        .tag-strategy { background: #1a1a2e; color: #8888ff; }
-        .opp-desc { color: #bbb; font-size: 0.9rem; line-height: 1.5; margin-bottom: 14px; }
-        .opp-target { color: #666; font-size: 0.8rem; margin-bottom: 12px; }
-        .opp-target a { color: #6688cc; text-decoration: none; }
+        .tag-strategy { background: rgba(0,144,193,0.15); color: var(--blue, #0090C1); }
+        .opp-desc { color: rgba(255,255,255,0.6); font-size: 0.9rem; line-height: 1.5; margin-bottom: 14px; }
+        .opp-target { color: rgba(255,255,255,0.4); font-size: 0.8rem; margin-bottom: 12px; }
+        .opp-target a { color: var(--blue, #0090C1); text-decoration: none; }
         .opp-steps { list-style: none; counter-reset: step; }
-        .opp-steps li { counter-increment: step; position: relative; padding-left: 28px; margin-bottom: 8px; color: #ccc; font-size: 0.85rem; line-height: 1.4; }
-        .opp-steps li::before { content: counter(step); position: absolute; left: 0; top: 0; width: 20px; height: 20px; background: #222; border-radius: 50%; text-align: center; line-height: 20px; font-size: 0.7rem; color: #888; }
+        .opp-steps li { counter-increment: step; position: relative; padding-left: 28px; margin-bottom: 8px; color: rgba(255,255,255,0.7); font-size: 0.85rem; line-height: 1.4; }
+        .opp-steps li::before { content: counter(step); position: absolute; left: 0; top: 0; width: 20px; height: 20px; background: rgba(255,255,255,0.1); border-radius: 50%; text-align: center; line-height: 20px; font-size: 0.7rem; color: rgba(255,255,255,0.5); }
 
-        footer { text-align: center; color: #444; font-size: 0.8rem; padding: 32px 0 16px; border-top: 1px solid #1a1a1a; margin-top: 32px; }
+        .report-footer { text-align: center; color: rgba(255,255,255,0.3); font-size: 0.8rem; padding: 32px 0 16px; border-top: 1px solid rgba(255,255,255,0.1); margin-top: 32px; }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1>Backlink Strategy</h1>
-        <div class="subtitle">{{.SiteURL}} · {{.AnalyzedAt}} · {{.PagesAnalyzed}} pages analyzed</div>
+    <div class="report-container">
+        <header>
+            <div class="logo-row">
+                {{.LogoSVG}}
+                <span class="logo-text">Optimus</span>
+            </div>
+            <h1>Backlink Strategy</h1>
+            <div class="subtitle">{{.SiteURL}} · {{.AnalyzedAt}} · {{.PagesAnalyzed}} pages analyzed</div>
+        </header>
 
         <!-- Summary -->
         <div class="summary-grid">
@@ -1353,8 +1519,8 @@ var backlinksHTMLTemplate = `<!DOCTYPE html>
             {{if .Summary.CurrentDR}}<div class="summary-card"><div class="value">{{printf "%.0f" .Summary.CurrentDR}}</div><div class="label">Ahrefs DR</div></div>{{end}}
             {{if .Summary.ReferringDomains}}<div class="summary-card"><div class="value">{{.Summary.ReferringDomains}}</div><div class="label">Referring Domains</div></div>{{end}}
             <div class="summary-card"><div class="value">{{.Summary.TotalOpps}}</div><div class="label">Opportunities</div></div>
-            <div class="summary-card"><div class="value" style="color:#27C93F">{{.Summary.QuickWins}}</div><div class="label">Quick Wins</div></div>
-            <div class="summary-card"><div class="value" style="color:#F59E0B">{{.Summary.HighROI}}</div><div class="label">High ROI</div></div>
+            <div class="summary-card"><div class="value" style="color:#ADEEE3">{{.Summary.QuickWins}}</div><div class="label">Quick Wins</div></div>
+            <div class="summary-card"><div class="value" style="color:#0090C1">{{.Summary.HighROI}}</div><div class="label">High ROI</div></div>
         </div>
 
         {{if .Opportunities}}
@@ -1385,9 +1551,9 @@ var backlinksHTMLTemplate = `<!DOCTYPE html>
         </div>
         {{end}}
 
-        <footer>
-            Generated by Optimus Backlink Strategy · Powered by AI
-        </footer>
+        <div class="report-footer">
+            Generated by <strong>Optimus</strong>
+        </div>
     </div>
 </body>
 </html>`

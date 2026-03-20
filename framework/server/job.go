@@ -140,6 +140,11 @@ func (s *Server) runJob(job *Job) {
 	// Phase 3: Parse + Render
 	s.setStatus(job, "rendering")
 
+	// Load shared assets for report branding
+	cssBytes, _ := staticFiles.ReadFile("www/static/css/style.css")
+	svgBytes, _ := staticFiles.ReadFile("www/static/images/logo.svg")
+	css, logoSVG := string(cssBytes), string(svgBytes)
+
 	var renderResult *render.Result
 	switch result.Skill.Output {
 	case "report":
@@ -149,7 +154,7 @@ func (s *Server) runJob(job *Job) {
 			return
 		}
 		s.setResult(job, report)
-		renderResult, err = render.Generate(render.Config{Report: report, OutputDir: baseDir})
+		renderResult, err = render.Generate(render.Config{Report: report, OutputDir: baseDir, CSS: css, LogoSVG: logoSVG})
 		if err != nil {
 			s.failJob(job, fmt.Sprintf("rendering report: %s", err))
 			return
@@ -162,7 +167,7 @@ func (s *Server) runJob(job *Job) {
 			return
 		}
 		s.setResult(job, scorecard)
-		renderResult, err = render.GenerateScorecard(render.ScorecardConfig{Scorecard: scorecard, OutputDir: baseDir})
+		renderResult, err = render.GenerateScorecard(render.ScorecardConfig{Scorecard: scorecard, OutputDir: baseDir, CSS: css, LogoSVG: logoSVG})
 		if err != nil {
 			s.failJob(job, fmt.Sprintf("rendering scorecard: %s", err))
 			return
@@ -175,7 +180,7 @@ func (s *Server) runJob(job *Job) {
 			return
 		}
 		s.setResult(job, strategy)
-		renderResult, err = render.GenerateBacklinks(render.BacklinksConfig{Strategy: strategy, OutputDir: baseDir})
+		renderResult, err = render.GenerateBacklinks(render.BacklinksConfig{Strategy: strategy, OutputDir: baseDir, CSS: css, LogoSVG: logoSVG})
 		if err != nil {
 			s.failJob(job, fmt.Sprintf("rendering backlinks: %s", err))
 			return
@@ -194,6 +199,8 @@ func (s *Server) runJob(job *Job) {
 			SiteURL:   targetURL,
 			SkillName: result.Skill.Name,
 			OutputDir: outputDir,
+			CSS:       css,
+			LogoSVG:   logoSVG,
 		})
 		if err != nil {
 			s.failJob(job, fmt.Sprintf("rendering files: %s", err))

@@ -234,9 +234,12 @@ func handleReportOutput(result *engine.Result, baseDir string, pub publisher.Pub
 	fmt.Println(ui.Header("Phase 3: Generating reports"))
 	fmt.Println()
 
+	css, logoSVG := loadReportAssets()
 	reportResult, err := render.Generate(render.Config{
 		Report:    report,
 		OutputDir: baseDir,
+		CSS:       css,
+		LogoSVG:   logoSVG,
 	})
 	if err != nil {
 		fmt.Print("  ")
@@ -289,12 +292,15 @@ func handleFilesOutput(result *engine.Result, baseDir string, siteURL string, pu
 	fmt.Println(ui.Header("Phase 3: Writing files"))
 	fmt.Println()
 
+	css, logoSVG := loadReportAssets()
 	outputDir := filepath.Join(baseDir, "output")
 	renderResult, err := render.GenerateFiles(render.FilesConfig{
 		Files:     files,
 		SiteURL:   siteURL,
 		SkillName: result.Skill.Name,
 		OutputDir: outputDir,
+		CSS:       css,
+		LogoSVG:   logoSVG,
 	})
 	if err != nil {
 		fmt.Print("  ")
@@ -355,9 +361,12 @@ func handleBacklinksOutput(result *engine.Result, baseDir string, pub publisher.
 	fmt.Println(ui.Header("Phase 3: Generating backlink strategy"))
 	fmt.Println()
 
+	css, logoSVG := loadReportAssets()
 	renderResult, err := render.GenerateBacklinks(render.BacklinksConfig{
 		Strategy:  strategy,
 		OutputDir: baseDir,
+		CSS:       css,
+		LogoSVG:   logoSVG,
 	})
 	if err != nil {
 		fmt.Print("  ")
@@ -457,9 +466,12 @@ func handleScorecardOutput(result *engine.Result, baseDir string, pub publisher.
 	fmt.Println(ui.Header("Phase 3: Generating scorecard"))
 	fmt.Println()
 
+	css, logoSVG := loadReportAssets()
 	renderResult, err := render.GenerateScorecard(render.ScorecardConfig{
 		Scorecard: scorecard,
 		OutputDir: baseDir,
+		CSS:       css,
+		LogoSVG:   logoSVG,
 	})
 	if err != nil {
 		fmt.Print("  ")
@@ -618,6 +630,23 @@ func printSummary(report *engine.Report) {
 	}
 	fmt.Print("  ")
 	ui.PrintInfo("Open the HTML report for full details")
+}
+
+// loadReportAssets reads the marketing CSS and logo SVG for embedding in reports.
+// Returns empty strings if the files are not found (templates use CSS variable fallbacks).
+func loadReportAssets() (css, logoSVG string) {
+	paths := []string{
+		"framework/server/www/static",
+		"../server/www/static",
+	}
+	for _, base := range paths {
+		cssData, err1 := os.ReadFile(filepath.Join(base, "css", "style.css"))
+		svgData, err2 := os.ReadFile(filepath.Join(base, "images", "logo.svg"))
+		if err1 == nil && err2 == nil {
+			return string(cssData), string(svgData)
+		}
+	}
+	return "", ""
 }
 
 // findBackupName returns the next available backup name
