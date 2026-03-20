@@ -42,8 +42,10 @@ for PLATFORM in "${PLATFORMS[@]}"; do
     GOARCH="${PLATFORM#*/}"
 
     OUTPUT_NAME="optimus-${VERSION}-${GOOS}-${GOARCH}"
+    SERVER_OUTPUT_NAME="optimus-server-${VERSION}-${GOOS}-${GOARCH}"
     if [ "$GOOS" = "windows" ]; then
         OUTPUT_NAME="${OUTPUT_NAME}.exe"
+        SERVER_OUTPUT_NAME="${SERVER_OUTPUT_NAME}.exe"
     fi
 
     echo -e "${BLUE}Building ${GOOS}/${GOARCH}...${NC}"
@@ -54,6 +56,13 @@ for PLATFORM in "${PLATFORMS[@]}"; do
         ./framework/cli
 
     echo -e "${GREEN}✓ Created: ${OUTPUT_NAME}${NC}"
+
+    GOOS=$GOOS GOARCH=$GOARCH go build \
+        -ldflags "-X main.Version=${VERSION}" \
+        -o "$BUILD_DIR/$SERVER_OUTPUT_NAME" \
+        ./framework/server
+
+    echo -e "${GREEN}✓ Created: ${SERVER_OUTPUT_NAME}${NC}"
     echo ""
 done
 

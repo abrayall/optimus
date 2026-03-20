@@ -1,0 +1,5 @@
+{
+  "name": "Backlink Strategy",
+  "description": "Analyzes website and generates actionable backlink building ideas",
+  "output": "backlinks"
+}

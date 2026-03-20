@@ -1,0 +1,5 @@
+{
+  "name": "Rank Assessment",
+  "description": "Measures current search engine and answer engine ranking signals to benchmark before/after improvements",
+  "output": "scorecard"
+}

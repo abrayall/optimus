@@ -9,8 +9,9 @@ import (
 	"strings"
 	"time"
 
-	"optimus/core/lib/analyzer"
-	"optimus/core/lib/reporter"
+	"optimus/core/lib/engine"
+	"optimus/core/lib/publisher"
+	"optimus/core/lib/render"
 	"optimus/core/lib/scraper"
 	"optimus/core/lib/ui"
 
@@ -26,6 +27,26 @@ var (
 	optimusTimeout      int
 	optimusURL          string
 	optimusInstructions string
+	optimusSkill        string
+
+	// Publishing
+	optimusPublish    string
+	optimusS3Bucket   string
+	optimusS3Region   string
+	optimusS3Endpoint string
+
+	// External API keys
+	optimusSerpAPIKey          string
+	optimusGoogleAPIKey        string
+	optimusGoogleCSEID         string
+	optimusGSCCreds            string
+	optimusPerplexityKey       string
+	optimusMozAPIKey           string
+	optimusAhrefsAPIKey        string
+	optimusBingAPIKey          string
+	optimusRedditClientID      string
+	optimusRedditClientSecret  string
+	optimusTwitterBearerToken  string
 )
 
 func runOptimus(cmd *cobra.Command, args []string) {
@@ -41,7 +62,18 @@ func runOptimus(cmd *cobra.Command, args []string) {
 
 	// Normalize URL
 	if !strings.HasPrefix(targetURL, "http://") && !strings.HasPrefix(targetURL, "https://") {
-		targetURL = "https://" + targetURL
+		if strings.HasPrefix(targetURL, "localhost") || strings.HasPrefix(targetURL, "127.0.0.1") {
+			targetURL = "http://" + targetURL
+		} else {
+			targetURL = "https://" + targetURL
+		}
+	}
+
+	// Validate skill exists before doing any work
+	if _, err := engine.LoadSkill(optimusSkill); err != nil {
+		available := engine.ListSkills()
+		ui.PrintError("Skill %q not found. Available skills: %s", optimusSkill, strings.Join(available, ", "))
+		os.Exit(1)
 	}
 
 	// Derive site name
@@ -58,6 +90,7 @@ func runOptimus(cmd *cobra.Command, args []string) {
 	ui.PrintHeader(Version)
 	ui.PrintKeyValue("URL", targetURL)
 	ui.PrintKeyValue("Name", name)
+	ui.PrintKeyValue("Skill", optimusSkill)
 	ui.PrintKeyValue("Pages", fmt.Sprintf("%d", optimusCount))
 	ui.PrintKeyValue("Directory", baseDir)
 	fmt.Println()
@@ -119,49 +152,89 @@ func runOptimus(cmd *cobra.Command, args []string) {
 		fmt.Println()
 	}
 
-	// Phase 2: Analyze with AI
-	var report *analyzer.Report
-	if !optimusSkipAnalyze {
-		fmt.Println(ui.Header("Phase 2: Analyzing SEO with AI"))
-		fmt.Println()
-
-		analyzeResult, err := analyzer.Analyze(analyzer.Config{
-			SiteURL:      targetURL,
-			ScrapedDir:   scrapedDir,
-			Pages:        pages,
-			OutputDir:    baseDir,
-			Instructions: optimusInstructions,
-		})
-		if err != nil {
-			fmt.Print("  ")
-			ui.PrintError("Analysis failed: %s", err)
-			os.Exit(1)
-		}
-
-		report = analyzeResult.Report
-		fmt.Print("  ")
-		ui.PrintSuccess("Found %d SEO recommendations", len(report.Recommendations))
-		if report.Summary.CriticalCount > 0 {
-			fmt.Print("    ")
-			ui.PrintWarning("%d critical issues found!", report.Summary.CriticalCount)
-		}
-		if report.Summary.HighCount > 0 {
-			fmt.Print("    ")
-			ui.PrintInfo("%d high priority issues", report.Summary.HighCount)
-		}
-		fmt.Println()
-	} else {
+	// Phase 2: Run skill with AI
+	if optimusSkipAnalyze {
 		fmt.Print("  ")
 		ui.PrintWarning("Skipping analysis")
 		fmt.Println()
 		return
 	}
 
+	fmt.Println(ui.Header("Phase 2: Running skill with AI"))
+	fmt.Println()
+
+	result, err := engine.Run(engine.Config{
+		SiteURL:            targetURL,
+		ScrapedDir:         scrapedDir,
+		Pages:              pages,
+		OutputDir:          baseDir,
+		Instructions:       optimusInstructions,
+		Skill:              optimusSkill,
+		SerpAPIKey:         optimusSerpAPIKey,
+		GoogleAPIKey:       optimusGoogleAPIKey,
+		GoogleCSEID:        optimusGoogleCSEID,
+		GSCCredentials:     optimusGSCCreds,
+		PerplexityKey:      optimusPerplexityKey,
+		MozAPIKey:          optimusMozAPIKey,
+		AhrefsAPIKey:       optimusAhrefsAPIKey,
+		BingAPIKey:         optimusBingAPIKey,
+		RedditClientID:     optimusRedditClientID,
+		RedditClientSecret: optimusRedditClientSecret,
+		TwitterBearerToken: optimusTwitterBearerToken,
+	})
+	if err != nil {
+		fmt.Print("  ")
+		ui.PrintError("Analysis failed: %s", err)
+		os.Exit(1)
+	}
+
+	// Handle output based on skill type
+	pub := createPublisher(name)
+	switch result.Skill.Output {
+	case "scorecard":
+		handleScorecardOutput(result, baseDir, pub)
+	case "files":
+		handleFilesOutput(result, baseDir, targetURL, pub)
+	case "backlinks":
+		handleBacklinksOutput(result, baseDir, pub)
+	default:
+		handleReportOutput(result, baseDir, pub)
+	}
+
+	// Print session ID for resuming
+	if result.SessionID != "" {
+		fmt.Println()
+		ui.PrintKeyValue("Session", result.SessionID)
+		ui.PrintInfo("Resume with: claude --resume %s", result.SessionID)
+	}
+}
+
+// handleReportOutput parses a report from the raw output and generates HTML/JSON reports
+func handleReportOutput(result *engine.Result, baseDir string, pub publisher.Publisher) {
+	report, err := engine.ParseReport(result.RawOutput)
+	if err != nil {
+		fmt.Print("  ")
+		ui.PrintError("Failed to parse report: %s", err)
+		os.Exit(1)
+	}
+
+	fmt.Print("  ")
+	ui.PrintSuccess("Found %d recommendations", len(report.Recommendations))
+	if report.Summary.CriticalCount > 0 {
+		fmt.Print("    ")
+		ui.PrintWarning("%d critical issues found!", report.Summary.CriticalCount)
+	}
+	if report.Summary.HighCount > 0 {
+		fmt.Print("    ")
+		ui.PrintInfo("%d high priority issues", report.Summary.HighCount)
+	}
+	fmt.Println()
+
 	// Phase 3: Generate Reports
 	fmt.Println(ui.Header("Phase 3: Generating reports"))
 	fmt.Println()
 
-	reportResult, err := reporter.Generate(reporter.Config{
+	reportResult, err := render.Generate(render.Config{
 		Report:    report,
 		OutputDir: baseDir,
 	})
@@ -171,12 +244,19 @@ func runOptimus(cmd *cobra.Command, args []string) {
 		os.Exit(1)
 	}
 
+	pubResult, err := pub.Publish(reportResult.HTMLPath, reportResult.JSONPath)
+	if err != nil {
+		fmt.Print("  ")
+		ui.PrintError("Publishing failed: %s", err)
+		os.Exit(1)
+	}
+
 	fmt.Print("  ")
 	ui.PrintSuccess("Reports generated")
 	fmt.Print("    ")
-	ui.PrintKeyValue("JSON", reportResult.JSONPath)
+	ui.PrintKeyValue("JSON", pubResult.JSONURL)
 	fmt.Print("    ")
-	ui.PrintKeyValue("HTML", reportResult.HTMLPath)
+	ui.PrintKeyValue("HTML", pubResult.HTMLURL)
 	fmt.Println()
 
 	// Print summary
@@ -189,11 +269,312 @@ func runOptimus(cmd *cobra.Command, args []string) {
 	// Open HTML report in browser
 	fmt.Println()
 	ui.PrintInfo("Opening report in browser...")
-	exec.Command("open", reportResult.HTMLPath).Start()
+	exec.Command("open", pubResult.HTMLURL).Start()
+}
+
+// handleFilesOutput parses file entries from the raw output, writes them to disk, and opens an HTML viewer
+func handleFilesOutput(result *engine.Result, baseDir string, siteURL string, pub publisher.Publisher) {
+	files, err := engine.ParseFiles(result.RawOutput)
+	if err != nil {
+		fmt.Print("  ")
+		ui.PrintError("Failed to parse files output: %s", err)
+		os.Exit(1)
+	}
+
+	fmt.Print("  ")
+	ui.PrintSuccess("Generated %d files", len(files))
+	fmt.Println()
+
+	// Phase 3: Write files and generate HTML viewer
+	fmt.Println(ui.Header("Phase 3: Writing files"))
+	fmt.Println()
+
+	outputDir := filepath.Join(baseDir, "output")
+	renderResult, err := render.GenerateFiles(render.FilesConfig{
+		Files:     files,
+		SiteURL:   siteURL,
+		SkillName: result.Skill.Name,
+		OutputDir: outputDir,
+	})
+	if err != nil {
+		fmt.Print("  ")
+		ui.PrintError("Failed to write files: %s", err)
+		os.Exit(1)
+	}
+
+	pubResult, err := pub.Publish(renderResult.HTMLPath, "")
+	if err != nil {
+		fmt.Print("  ")
+		ui.PrintError("Publishing failed: %s", err)
+		os.Exit(1)
+	}
+
+	for _, f := range files {
+		fmt.Print("    ")
+		ui.PrintKeyValue("Wrote", filepath.Join(outputDir, f.Filename))
+	}
+	fmt.Print("    ")
+	ui.PrintKeyValue("HTML", pubResult.HTMLURL)
+	fmt.Println()
+
+	// Print summary
+	fmt.Println(ui.Divider())
+	fmt.Println()
+	ui.PrintSuccess("Optimus complete!")
+	fmt.Println()
+	fmt.Print("  ")
+	ui.PrintKeyValue("Files", fmt.Sprintf("%d", len(files)))
+	fmt.Print("  ")
+	ui.PrintKeyValue("Output", outputDir)
+	fmt.Println()
+
+	// Open HTML viewer in browser
+	fmt.Println()
+	ui.PrintInfo("Opening in browser...")
+	exec.Command("open", pubResult.HTMLURL).Start()
+}
+
+// handleBacklinksOutput parses a backlink strategy from raw output and generates HTML/JSON
+func handleBacklinksOutput(result *engine.Result, baseDir string, pub publisher.Publisher) {
+	strategy, err := engine.ParseBacklinks(result.RawOutput)
+	if err != nil {
+		fmt.Print("  ")
+		ui.PrintError("Failed to parse backlink strategy: %s", err)
+		os.Exit(1)
+	}
+
+	fmt.Print("  ")
+	ui.PrintSuccess("Found %d backlink opportunities", len(strategy.Opportunities))
+	if strategy.Summary.QuickWins > 0 {
+		fmt.Print("    ")
+		ui.PrintInfo("%d quick wins identified", strategy.Summary.QuickWins)
+	}
+	fmt.Println()
+
+	// Phase 3: Generate Reports
+	fmt.Println(ui.Header("Phase 3: Generating backlink strategy"))
+	fmt.Println()
+
+	renderResult, err := render.GenerateBacklinks(render.BacklinksConfig{
+		Strategy:  strategy,
+		OutputDir: baseDir,
+	})
+	if err != nil {
+		fmt.Print("  ")
+		ui.PrintError("Report generation failed: %s", err)
+		os.Exit(1)
+	}
+
+	pubResult, err := pub.Publish(renderResult.HTMLPath, renderResult.JSONPath)
+	if err != nil {
+		fmt.Print("  ")
+		ui.PrintError("Publishing failed: %s", err)
+		os.Exit(1)
+	}
+
+	fmt.Print("  ")
+	ui.PrintSuccess("Backlink strategy generated")
+	fmt.Print("    ")
+	ui.PrintKeyValue("JSON", pubResult.JSONURL)
+	fmt.Print("    ")
+	ui.PrintKeyValue("HTML", pubResult.HTMLURL)
+	fmt.Println()
+
+	// Print summary
+	fmt.Println(ui.Divider())
+	fmt.Println()
+	ui.PrintSuccess("Optimus complete!")
+	fmt.Println()
+	printBacklinksSummary(strategy)
+
+	// Open HTML report in browser
+	fmt.Println()
+	ui.PrintInfo("Opening report in browser...")
+	exec.Command("open", pubResult.HTMLURL).Start()
+}
+
+// printBacklinksSummary displays a quick overview of backlink strategy findings
+func printBacklinksSummary(bs *engine.BacklinkStrategy) {
+	fmt.Println(ui.Header("Backlink Summary"))
+	fmt.Println()
+	if bs.Summary.CurrentDA > 0 {
+		fmt.Print("  ")
+		ui.PrintKeyValue("Domain Authority", fmt.Sprintf("%.0f", bs.Summary.CurrentDA))
+	}
+	if bs.Summary.CurrentDR > 0 {
+		fmt.Print("  ")
+		ui.PrintKeyValue("Domain Rating", fmt.Sprintf("%.0f", bs.Summary.CurrentDR))
+	}
+	if bs.Summary.ReferringDomains > 0 {
+		fmt.Print("  ")
+		ui.PrintKeyValue("Referring Domains", fmt.Sprintf("%d", bs.Summary.ReferringDomains))
+	}
+	fmt.Print("  ")
+	ui.PrintKeyValue("Opportunities", fmt.Sprintf("%d", bs.Summary.TotalOpps))
+	fmt.Print("  ")
+	ui.PrintKeyValue("Quick Wins", fmt.Sprintf("%d", bs.Summary.QuickWins))
+	fmt.Print("  ")
+	ui.PrintKeyValue("High ROI", fmt.Sprintf("%d", bs.Summary.HighROI))
+	fmt.Println()
+
+	// Show top opportunities by strategy
+	shown := 0
+	for _, opp := range bs.Opportunities {
+		if shown >= 5 {
+			break
+		}
+		icon := "🔵"
+		if opp.Difficulty == "easy" && opp.Impact == "high" {
+			icon = "🟢"
+		} else if opp.Impact == "high" {
+			icon = "🟠"
+		}
+		fmt.Printf("    %s %s\n", icon, opp.Title)
+		fmt.Printf("       %s · %s difficulty · %s impact\n", opp.Strategy, opp.Difficulty, opp.Impact)
+		shown++
+	}
+	if shown > 0 {
+		fmt.Println()
+	}
+	fmt.Print("  ")
+	ui.PrintInfo("Open the HTML report for full details")
+}
+
+// handleScorecardOutput parses a scorecard from raw output and generates HTML/JSON
+func handleScorecardOutput(result *engine.Result, baseDir string, pub publisher.Publisher) {
+	scorecard, err := engine.ParseScorecard(result.RawOutput)
+	if err != nil {
+		fmt.Print("  ")
+		ui.PrintError("Failed to parse scorecard: %s", err)
+		os.Exit(1)
+	}
+
+	fmt.Print("  ")
+	ui.PrintSuccess("Scorecard complete — overall score: %d/100", scorecard.OverallScore)
+	fmt.Println()
+
+	// Phase 3: Generate Scorecard
+	fmt.Println(ui.Header("Phase 3: Generating scorecard"))
+	fmt.Println()
+
+	renderResult, err := render.GenerateScorecard(render.ScorecardConfig{
+		Scorecard: scorecard,
+		OutputDir: baseDir,
+	})
+	if err != nil {
+		fmt.Print("  ")
+		ui.PrintError("Scorecard generation failed: %s", err)
+		os.Exit(1)
+	}
+
+	pubResult, err := pub.Publish(renderResult.HTMLPath, renderResult.JSONPath)
+	if err != nil {
+		fmt.Print("  ")
+		ui.PrintError("Publishing failed: %s", err)
+		os.Exit(1)
+	}
+
+	fmt.Print("  ")
+	ui.PrintSuccess("Scorecard generated")
+	fmt.Print("    ")
+	ui.PrintKeyValue("JSON", pubResult.JSONURL)
+	fmt.Print("    ")
+	ui.PrintKeyValue("HTML", pubResult.HTMLURL)
+	fmt.Println()
+
+	// Print summary
+	fmt.Println(ui.Divider())
+	fmt.Println()
+	ui.PrintSuccess("Optimus complete!")
+	fmt.Println()
+	printScorecardSummary(scorecard)
+
+	// Open HTML in browser
+	fmt.Println()
+	ui.PrintInfo("Opening scorecard in browser...")
+	exec.Command("open", pubResult.HTMLURL).Start()
+}
+
+// printScorecardSummary displays a quick overview of scorecard results
+func printScorecardSummary(sc *engine.Scorecard) {
+	fmt.Println(ui.Header("Score Summary"))
+	fmt.Println()
+	fmt.Print("  ")
+	ui.PrintKeyValue("Overall", fmt.Sprintf("%d/100", sc.OverallScore))
+	fmt.Print("  ")
+	ui.PrintKeyValue("Search Rank", fmt.Sprintf("%d/100", sc.CategoryScores.SearchRank))
+	fmt.Print("  ")
+	ui.PrintKeyValue("Answer Rank", fmt.Sprintf("%d/100", sc.CategoryScores.AnswerRank))
+	fmt.Print("  ")
+	ui.PrintKeyValue("Technical", fmt.Sprintf("%d/100", sc.CategoryScores.Technical))
+	fmt.Print("  ")
+	ui.PrintKeyValue("Content", fmt.Sprintf("%d/100", sc.CategoryScores.Content))
+	fmt.Print("  ")
+	ui.PrintKeyValue("Structure", fmt.Sprintf("%d/100", sc.CategoryScores.Structure))
+	fmt.Println()
+
+	if sc.DomainAuth != nil {
+		fmt.Println(ui.Header("Domain Authority"))
+		fmt.Println()
+		if sc.DomainAuth.MozDA > 0 {
+			fmt.Print("  ")
+			ui.PrintKeyValue("Moz DA", fmt.Sprintf("%.0f/100", sc.DomainAuth.MozDA))
+			fmt.Print("  ")
+			ui.PrintKeyValue("Moz PA", fmt.Sprintf("%.0f/100", sc.DomainAuth.MozPA))
+			fmt.Print("  ")
+			ui.PrintKeyValue("Spam Score", fmt.Sprintf("%.0f%%", sc.DomainAuth.MozSpamScore))
+			fmt.Print("  ")
+			ui.PrintKeyValue("Linking Domains", fmt.Sprintf("%d", sc.DomainAuth.LinkingRootDomains))
+		}
+		if sc.DomainAuth.AhrefsDR > 0 {
+			fmt.Print("  ")
+			ui.PrintKeyValue("Ahrefs DR", fmt.Sprintf("%.0f/100", sc.DomainAuth.AhrefsDR))
+			fmt.Print("  ")
+			ui.PrintKeyValue("Ahrefs Rank", fmt.Sprintf("%d", sc.DomainAuth.AhrefsRank))
+		}
+		fmt.Println()
+	}
+
+	if sc.BacklinkProfile != nil {
+		fmt.Println(ui.Header("Backlink Profile"))
+		fmt.Println()
+		fmt.Print("  ")
+		ui.PrintKeyValue("Live Backlinks", fmt.Sprintf("%d", sc.BacklinkProfile.LiveBacklinks))
+		fmt.Print("  ")
+		ui.PrintKeyValue("Referring Domains", fmt.Sprintf("%d", sc.BacklinkProfile.ReferringDomains))
+		fmt.Print("  ")
+		ui.PrintKeyValue("Referring Pages", fmt.Sprintf("%d", sc.BacklinkProfile.ReferringPages))
+		fmt.Println()
+	}
+
+	if len(sc.SerpPositions) > 0 {
+		fmt.Println(ui.Header("Search Positions"))
+		fmt.Println()
+		for _, sp := range sc.SerpPositions {
+			if sp.DomainFound {
+				fmt.Printf("    %s: #%d\n", sp.Keyword, sp.Position)
+			} else {
+				fmt.Printf("    %s: %s\n", sp.Keyword, ui.Muted("not found"))
+			}
+		}
+		fmt.Println()
+	}
+
+	if len(sc.Findings) > 0 {
+		fmt.Println(ui.Header("Key Findings"))
+		fmt.Println()
+		for _, f := range sc.Findings {
+			fmt.Printf("    %s %s\n", ui.Highlight("•"), f)
+		}
+		fmt.Println()
+	}
+
+	fmt.Print("  ")
+	ui.PrintInfo("Open the HTML scorecard for full details")
 }
 
 // printSummary displays a quick overview of findings
-func printSummary(report *analyzer.Report) {
+func printSummary(report *engine.Report) {
 	fmt.Println(ui.Header("Summary"))
 	fmt.Println()
 	fmt.Print("  ")
@@ -260,6 +641,25 @@ func deriveNameFromURL(rawURL string) string {
 	hostname = strings.TrimPrefix(hostname, "www.")
 	// Join all parts with dashes: hub.responsiveworks.com -> hub-responsiveworks-com
 	return strings.ReplaceAll(hostname, ".", "-")
+}
+
+// createPublisher returns a Publisher based on the --publish flag
+func createPublisher(siteName string) publisher.Publisher {
+	switch optimusPublish {
+	case "s3":
+		if optimusS3Bucket == "" {
+			ui.PrintError("--s3-bucket is required when using --publish s3")
+			os.Exit(1)
+		}
+		pub, err := publisher.NewS3(optimusS3Bucket, optimusS3Region, optimusS3Endpoint, siteName)
+		if err != nil {
+			ui.PrintError("Failed to create S3 publisher: %s", err)
+			os.Exit(1)
+		}
+		return pub
+	default:
+		return publisher.NewLocal()
+	}
 }
 
 // loadExistingPages loads previously scraped page files

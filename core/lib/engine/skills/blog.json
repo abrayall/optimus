@@ -1,0 +1,5 @@
+{
+  "name": "Blog Writer",
+  "description": "Generates blog posts based on website content",
+  "output": "files"
+}
