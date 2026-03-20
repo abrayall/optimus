@@ -22,9 +22,14 @@ RUN apk --no-cache add ca-certificates chromium nodejs npm bash \
 
 ENV CHROME_PATH=/usr/bin/chromium-browser
 
+# Create non-root user (claude --dangerously-skip-permissions refuses to run as root)
+RUN adduser -D -h /home/optimus optimus
+USER optimus
+WORKDIR /home/optimus
+
 # Pre-configure Claude Code onboarding so it doesn't prompt
-RUN echo '{"hasCompletedOnboarding":true}' > /root/.claude.json \
-    && mkdir -p /root/.claude
+RUN echo '{"hasCompletedOnboarding":true}' > /home/optimus/.claude.json \
+    && mkdir -p /home/optimus/.claude
 
 COPY --from=builder /optimus-server /usr/local/bin/optimus-server
 
