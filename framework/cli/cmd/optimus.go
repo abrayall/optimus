@@ -69,11 +69,13 @@ func runOptimus(cmd *cobra.Command, args []string) {
 		}
 	}
 
-	// Validate skill exists before doing any work
-	if _, err := engine.LoadSkill(optimusSkill); err != nil {
-		available := engine.ListSkills()
-		ui.PrintError("Skill %q not found. Available skills: %s", optimusSkill, strings.Join(available, ", "))
-		os.Exit(1)
+	// Validate skill exists before doing any work (skip for "all" mode)
+	if optimusSkill != "all" {
+		if _, err := engine.LoadSkill(optimusSkill); err != nil {
+			available := engine.ListSkills()
+			ui.PrintError("Skill %q not found. Available skills: all, %s", optimusSkill, strings.Join(available, ", "))
+			os.Exit(1)
+		}
 	}
 
 	// Derive site name
@@ -160,10 +162,7 @@ func runOptimus(cmd *cobra.Command, args []string) {
 		return
 	}
 
-	fmt.Println(ui.Header("Phase 2: Running skill with AI"))
-	fmt.Println()
-
-	result, err := engine.Run(engine.Config{
+	cfg := engine.Config{
 		SiteURL:            targetURL,
 		ScrapedDir:         scrapedDir,
 		Pages:              pages,
@@ -181,7 +180,19 @@ func runOptimus(cmd *cobra.Command, args []string) {
 		RedditClientID:     optimusRedditClientID,
 		RedditClientSecret: optimusRedditClientSecret,
 		TwitterBearerToken: optimusTwitterBearerToken,
-	})
+	}
+
+	pub := createPublisher(name)
+
+	if optimusSkill == "all" {
+		handleCombinedOutput(cfg, baseDir, targetURL, pub)
+		return
+	}
+
+	fmt.Println(ui.Header("Phase 2: Running skill with AI"))
+	fmt.Println()
+
+	result, err := engine.Run(cfg)
 	if err != nil {
 		fmt.Print("  ")
 		ui.PrintError("Analysis failed: %s", err)
@@ -189,7 +200,6 @@ func runOptimus(cmd *cobra.Command, args []string) {
 	}
 
 	// Handle output based on skill type
-	pub := createPublisher(name)
 	switch result.Skill.Output {
 	case "scorecard":
 		handleScorecardOutput(result, baseDir, pub)
@@ -693,6 +703,147 @@ func createPublisher(siteName string) publisher.Publisher {
 	default:
 		return publisher.NewLocal()
 	}
+}
+
+// handleCombinedOutput runs all skills and generates a combined tabbed report
+func handleCombinedOutput(cfg engine.Config, baseDir string, siteURL string, pub publisher.Publisher) {
+	skills := engine.AnalysisSkills()
+	fmt.Println(ui.Header(fmt.Sprintf("Phase 2: Running %d skills with AI", len(skills))))
+	fmt.Println()
+
+	fullResult, err := engine.RunAll(cfg)
+	if err != nil {
+		fmt.Print("  ")
+		ui.PrintError("Analysis failed: %s", err)
+		os.Exit(1)
+	}
+
+	// Report per-skill status
+	succeeded := 0
+	failed := 0
+	for _, sr := range fullResult.Skills {
+		name := ""
+		if sr.Skill != nil {
+			name = sr.Skill.Name
+		}
+		if sr.Error != "" {
+			failed++
+			fmt.Print("  ")
+			ui.PrintWarning("%s: failed (%s)", name, sr.Error)
+		} else {
+			succeeded++
+			fmt.Print("  ")
+			ui.PrintSuccess("%s: complete", name)
+		}
+	}
+	fmt.Println()
+	fmt.Print("  ")
+	ui.PrintInfo("%d succeeded, %d failed", succeeded, failed)
+	fmt.Println()
+
+	// Phase 3: Parse results and generate combined report
+	fmt.Println(ui.Header("Phase 3: Generating combined report"))
+	fmt.Println()
+
+	css, logoSVG := loadReportAssets()
+	combinedCfg := render.CombinedConfig{
+		SiteURL:   siteURL,
+		Reports:   make(map[string]*engine.Report),
+		Files:     make(map[string][]engine.FileEntry),
+		Errors:    make(map[string]string),
+		OutputDir: baseDir,
+		CSS:       css,
+		LogoSVG:   logoSVG,
+		Version:   Version,
+	}
+
+	for _, sr := range fullResult.Skills {
+		if sr.Skill == nil {
+			continue
+		}
+		skillKey := cfg.Skill // not useful here, derive from skill
+		// Derive skill key from the skill output type and name
+		for _, name := range engine.AnalysisSkills() {
+			s, _ := engine.LoadSkill(name)
+			if s != nil && s.Name == sr.Skill.Name {
+				skillKey = name
+				break
+			}
+		}
+
+		if sr.Error != "" {
+			combinedCfg.Errors[skillKey] = sr.Error
+			continue
+		}
+
+		switch sr.Skill.Output {
+		case "scorecard":
+			scorecard, err := engine.ParseScorecard(sr.RawOutput)
+			if err != nil {
+				combinedCfg.Errors[skillKey] = fmt.Sprintf("parse error: %s", err)
+			} else {
+				combinedCfg.Scorecard = scorecard
+			}
+		case "report":
+			report, err := engine.ParseReport(sr.RawOutput)
+			if err != nil {
+				combinedCfg.Errors[skillKey] = fmt.Sprintf("parse error: %s", err)
+			} else {
+				combinedCfg.Reports[skillKey] = report
+			}
+		case "backlinks":
+			strategy, err := engine.ParseBacklinks(sr.RawOutput)
+			if err != nil {
+				combinedCfg.Errors[skillKey] = fmt.Sprintf("parse error: %s", err)
+			} else {
+				combinedCfg.Backlinks = strategy
+			}
+		case "files":
+			files, err := engine.ParseFiles(sr.RawOutput)
+			if err != nil {
+				combinedCfg.Errors[skillKey] = fmt.Sprintf("parse error: %s", err)
+			} else {
+				combinedCfg.Files[skillKey] = files
+			}
+		}
+	}
+
+	renderResult, err := render.GenerateCombined(combinedCfg)
+	if err != nil {
+		fmt.Print("  ")
+		ui.PrintError("Combined report generation failed: %s", err)
+		os.Exit(1)
+	}
+
+	pubResult, err := pub.Publish(renderResult.HTMLPath, renderResult.JSONPath)
+	if err != nil {
+		fmt.Print("  ")
+		ui.PrintError("Publishing failed: %s", err)
+		os.Exit(1)
+	}
+
+	fmt.Print("  ")
+	ui.PrintSuccess("Combined report generated")
+	fmt.Print("    ")
+	ui.PrintKeyValue("JSON", pubResult.JSONURL)
+	fmt.Print("    ")
+	ui.PrintKeyValue("HTML", pubResult.HTMLURL)
+	fmt.Println()
+
+	// Print summary
+	fmt.Println(ui.Divider())
+	fmt.Println()
+	ui.PrintSuccess("Optimus complete!")
+	fmt.Println()
+
+	if combinedCfg.Scorecard != nil {
+		printScorecardSummary(combinedCfg.Scorecard)
+	}
+
+	// Open HTML report in browser
+	fmt.Println()
+	ui.PrintInfo("Opening report in browser...")
+	exec.Command("open", pubResult.HTMLURL).Start()
 }
 
 // loadExistingPages loads previously scraped page files

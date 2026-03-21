@@ -332,6 +332,46 @@ func ParseBacklinks(text string) (*BacklinkStrategy, error) {
 	return &bs, nil
 }
 
+// SkillResult captures the outcome of a single skill within a RunAll invocation
+type SkillResult struct {
+	Skill     *Skill
+	RawOutput string
+	Error     string
+	SessionID string
+}
+
+// FullResult holds the results of running all skills
+type FullResult struct {
+	Skills []*SkillResult
+}
+
+// AnalysisSkills returns the ordered list of skills to run in "all" mode
+func AnalysisSkills() []string {
+	return []string{"rank", "seo", "aeo", "keywords", "backlinks", "blog"}
+}
+
+// RunAll executes all analysis skills sequentially, capturing per-skill errors
+func RunAll(cfg Config) (*FullResult, error) {
+	full := &FullResult{}
+	for _, skillName := range AnalysisSkills() {
+		cfg.Skill = skillName
+		result, err := Run(cfg)
+		sr := &SkillResult{SessionID: ""}
+		if err != nil {
+			// Load skill metadata for the result even on error
+			skill, _ := LoadSkill(skillName)
+			sr.Skill = skill
+			sr.Error = err.Error()
+		} else {
+			sr.Skill = result.Skill
+			sr.RawOutput = result.RawOutput
+			sr.SessionID = result.SessionID
+		}
+		full.Skills = append(full.Skills, sr)
+	}
+	return full, nil
+}
+
 // Run uses Claude to execute a skill on scraped pages
 func Run(cfg Config) (*Result, error) {
 	// Load the skill

@@ -42,7 +42,7 @@ type JobRequest struct {
 // setDefaults fills in missing fields with sensible defaults
 func (r *JobRequest) setDefaults() {
 	if r.Skill == "" {
-		r.Skill = "seo"
+		r.Skill = "all"
 	}
 	if r.Count < 1 {
 		r.Count = 1
@@ -111,10 +111,12 @@ func (s *Server) runJob(job *Job) {
 		return
 	}
 
-	// Phase 2: Analyze
-	s.setStatus(job, "analyzing")
+	// Load shared assets for report branding
+	cssBytes, _ := staticFiles.ReadFile("www/static/css/style.css")
+	svgBytes, _ := staticFiles.ReadFile("www/static/images/logo.svg")
+	css, logoSVG := string(cssBytes), string(svgBytes)
 
-	result, err := engine.Run(engine.Config{
+	cfg := engine.Config{
 		SiteURL:            targetURL,
 		ScrapedDir:         scrapedDir,
 		Pages:              scrapeResult.Pages,
@@ -132,86 +134,171 @@ func (s *Server) runJob(job *Job) {
 		RedditClientID:     s.config.EngineKeys.RedditClientID,
 		RedditClientSecret: s.config.EngineKeys.RedditClientSecret,
 		TwitterBearerToken: s.config.EngineKeys.TwitterBearerToken,
-	})
-	if err != nil {
-		s.failJob(job, fmt.Sprintf("analysis failed: %s", err))
-		return
 	}
 
-	// Phase 3: Parse + Render
-	s.setStatus(job, "rendering")
-
-	// Load shared assets for report branding
-	cssBytes, _ := staticFiles.ReadFile("www/static/css/style.css")
-	svgBytes, _ := staticFiles.ReadFile("www/static/images/logo.svg")
-	css, logoSVG := string(cssBytes), string(svgBytes)
-
 	var renderResult *render.Result
-	switch result.Skill.Output {
-	case "report":
-		report, err := engine.ParseReport(result.RawOutput)
+
+	if job.Input.Skill == "all" {
+		// Combined mode: run all skills
+		s.setStatus(job, "analyzing")
+
+		fullResult, err := engine.RunAll(cfg)
 		if err != nil {
-			s.failJob(job, fmt.Sprintf("parsing report: %s", err))
-			return
-		}
-		s.setResult(job, report)
-		renderResult, err = render.Generate(render.Config{Report: report, OutputDir: baseDir, CSS: css, LogoSVG: logoSVG, Version: Version})
-		if err != nil {
-			s.failJob(job, fmt.Sprintf("rendering report: %s", err))
+			s.failJob(job, fmt.Sprintf("analysis failed: %s", err))
 			return
 		}
 
-	case "scorecard":
-		scorecard, err := engine.ParseScorecard(result.RawOutput)
-		if err != nil {
-			s.failJob(job, fmt.Sprintf("parsing scorecard: %s", err))
-			return
-		}
-		s.setResult(job, scorecard)
-		renderResult, err = render.GenerateScorecard(render.ScorecardConfig{Scorecard: scorecard, OutputDir: baseDir, CSS: css, LogoSVG: logoSVG, Version: Version})
-		if err != nil {
-			s.failJob(job, fmt.Sprintf("rendering scorecard: %s", err))
-			return
-		}
+		s.setStatus(job, "rendering")
 
-	case "backlinks":
-		strategy, err := engine.ParseBacklinks(result.RawOutput)
-		if err != nil {
-			s.failJob(job, fmt.Sprintf("parsing backlinks: %s", err))
-			return
-		}
-		s.setResult(job, strategy)
-		renderResult, err = render.GenerateBacklinks(render.BacklinksConfig{Strategy: strategy, OutputDir: baseDir, CSS: css, LogoSVG: logoSVG, Version: Version})
-		if err != nil {
-			s.failJob(job, fmt.Sprintf("rendering backlinks: %s", err))
-			return
-		}
-
-	case "files":
-		files, err := engine.ParseFiles(result.RawOutput)
-		if err != nil {
-			s.failJob(job, fmt.Sprintf("parsing files: %s", err))
-			return
-		}
-		s.setResult(job, files)
-		outputDir := filepath.Join(baseDir, "output")
-		renderResult, err = render.GenerateFiles(render.FilesConfig{
-			Files:     files,
+		combinedCfg := render.CombinedConfig{
 			SiteURL:   targetURL,
-			SkillName: result.Skill.Name,
-			OutputDir: outputDir,
+			Reports:   make(map[string]*engine.Report),
+			Files:     make(map[string][]engine.FileEntry),
+			Errors:    make(map[string]string),
+			OutputDir: baseDir,
 			CSS:       css,
 			LogoSVG:   logoSVG,
 			Version:   Version,
-		})
+		}
+
+		for _, sr := range fullResult.Skills {
+			if sr.Skill == nil {
+				continue
+			}
+			// Find the skill key
+			skillKey := ""
+			for _, name := range engine.AnalysisSkills() {
+				sk, _ := engine.LoadSkill(name)
+				if sk != nil && sk.Name == sr.Skill.Name {
+					skillKey = name
+					break
+				}
+			}
+			if skillKey == "" {
+				continue
+			}
+
+			if sr.Error != "" {
+				combinedCfg.Errors[skillKey] = sr.Error
+				continue
+			}
+
+			switch sr.Skill.Output {
+			case "scorecard":
+				scorecard, err := engine.ParseScorecard(sr.RawOutput)
+				if err != nil {
+					combinedCfg.Errors[skillKey] = fmt.Sprintf("parse error: %s", err)
+				} else {
+					combinedCfg.Scorecard = scorecard
+				}
+			case "report":
+				report, err := engine.ParseReport(sr.RawOutput)
+				if err != nil {
+					combinedCfg.Errors[skillKey] = fmt.Sprintf("parse error: %s", err)
+				} else {
+					combinedCfg.Reports[skillKey] = report
+				}
+			case "backlinks":
+				strategy, err := engine.ParseBacklinks(sr.RawOutput)
+				if err != nil {
+					combinedCfg.Errors[skillKey] = fmt.Sprintf("parse error: %s", err)
+				} else {
+					combinedCfg.Backlinks = strategy
+				}
+			case "files":
+				files, err := engine.ParseFiles(sr.RawOutput)
+				if err != nil {
+					combinedCfg.Errors[skillKey] = fmt.Sprintf("parse error: %s", err)
+				} else {
+					combinedCfg.Files[skillKey] = files
+				}
+			}
+		}
+
+		s.setResult(job, combinedCfg)
+		renderResult, err = render.GenerateCombined(combinedCfg)
 		if err != nil {
-			s.failJob(job, fmt.Sprintf("rendering files: %s", err))
+			s.failJob(job, fmt.Sprintf("rendering combined report: %s", err))
+			return
+		}
+	} else {
+		// Single skill mode
+		s.setStatus(job, "analyzing")
+
+		result, err := engine.Run(cfg)
+		if err != nil {
+			s.failJob(job, fmt.Sprintf("analysis failed: %s", err))
 			return
 		}
 
-	default:
-		s.failJob(job, fmt.Sprintf("unknown skill output type: %s", result.Skill.Output))
-		return
+		s.setStatus(job, "rendering")
+
+		switch result.Skill.Output {
+		case "report":
+			report, err := engine.ParseReport(result.RawOutput)
+			if err != nil {
+				s.failJob(job, fmt.Sprintf("parsing report: %s", err))
+				return
+			}
+			s.setResult(job, report)
+			renderResult, err = render.Generate(render.Config{Report: report, OutputDir: baseDir, CSS: css, LogoSVG: logoSVG, Version: Version})
+			if err != nil {
+				s.failJob(job, fmt.Sprintf("rendering report: %s", err))
+				return
+			}
+
+		case "scorecard":
+			scorecard, err := engine.ParseScorecard(result.RawOutput)
+			if err != nil {
+				s.failJob(job, fmt.Sprintf("parsing scorecard: %s", err))
+				return
+			}
+			s.setResult(job, scorecard)
+			renderResult, err = render.GenerateScorecard(render.ScorecardConfig{Scorecard: scorecard, OutputDir: baseDir, CSS: css, LogoSVG: logoSVG, Version: Version})
+			if err != nil {
+				s.failJob(job, fmt.Sprintf("rendering scorecard: %s", err))
+				return
+			}
+
+		case "backlinks":
+			strategy, err := engine.ParseBacklinks(result.RawOutput)
+			if err != nil {
+				s.failJob(job, fmt.Sprintf("parsing backlinks: %s", err))
+				return
+			}
+			s.setResult(job, strategy)
+			renderResult, err = render.GenerateBacklinks(render.BacklinksConfig{Strategy: strategy, OutputDir: baseDir, CSS: css, LogoSVG: logoSVG, Version: Version})
+			if err != nil {
+				s.failJob(job, fmt.Sprintf("rendering backlinks: %s", err))
+				return
+			}
+
+		case "files":
+			files, err := engine.ParseFiles(result.RawOutput)
+			if err != nil {
+				s.failJob(job, fmt.Sprintf("parsing files: %s", err))
+				return
+			}
+			s.setResult(job, files)
+			outputDir := filepath.Join(baseDir, "output")
+			renderResult, err = render.GenerateFiles(render.FilesConfig{
+				Files:     files,
+				SiteURL:   targetURL,
+				SkillName: result.Skill.Name,
+				OutputDir: outputDir,
+				CSS:       css,
+				LogoSVG:   logoSVG,
+				Version:   Version,
+			})
+			if err != nil {
+				s.failJob(job, fmt.Sprintf("rendering files: %s", err))
+				return
+			}
+
+		default:
+			s.failJob(job, fmt.Sprintf("unknown skill output type: %s", result.Skill.Output))
+			return
+		}
 	}
 
 	// Phase 4: Publish

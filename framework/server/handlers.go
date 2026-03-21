@@ -54,13 +54,15 @@ func (s *Server) handleCreateJob(w http.ResponseWriter, r *http.Request) {
 	req.URL = normalizeURL(req.URL)
 	req.setDefaults()
 
-	// Validate skill
-	if _, err := engine.LoadSkill(req.Skill); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{
-			"error":  "unknown skill: " + req.Skill,
-			"skills": joinSkills(),
-		})
-		return
+	// Validate skill ("all" is a valid meta-skill that runs everything)
+	if req.Skill != "all" {
+		if _, err := engine.LoadSkill(req.Skill); err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]string{
+				"error":  "unknown skill: " + req.Skill,
+				"skills": "all, " + joinSkills(),
+			})
+			return
+		}
 	}
 
 	id := generateID()

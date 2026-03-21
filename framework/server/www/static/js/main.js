@@ -166,7 +166,7 @@
             fetch('/api/jobs', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ url: url, skill: 'seo' })
+                body: JSON.stringify({ url: url, skill: 'rank' })
             })
                 .then(function (res) { return res.json(); })
                 .then(function (job) {

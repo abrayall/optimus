@@ -55,7 +55,7 @@ func init() {
 	rootCmd.Flags().BoolVar(&optimusSkipAnalyze, "skip-analyze", false, "Skip the analysis phase")
 	rootCmd.Flags().StringVar(&optimusURL, "url", "", "URL to analyze (alternative to positional arg)")
 	rootCmd.Flags().StringVarP(&optimusInstructions, "instructions", "i", "", "Custom instructions for the analysis")
-	rootCmd.Flags().StringVarP(&optimusSkill, "skill", "s", "seo", "Analysis skill to use (e.g. seo, aeo)")
+	rootCmd.Flags().StringVarP(&optimusSkill, "skill", "s", "all", "Analysis skill (all, seo, aeo, rank, keywords, backlinks, blog)")
 	rootCmd.Flags().StringVar(&optimusPublish, "publish", "local", "Publish destination (local, s3)")
 	rootCmd.Flags().StringVar(&optimusS3Bucket, "s3-bucket", "", "S3 bucket name for publishing")
 	rootCmd.Flags().StringVar(&optimusS3Region, "s3-region", "us-east-1", "AWS region for S3 publishing")
