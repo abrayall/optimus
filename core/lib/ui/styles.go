@@ -2,11 +2,16 @@ package ui
 
 import (
 	"fmt"
+	"os"
 	"sync"
 	"time"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/mattn/go-isatty"
 )
+
+// isTTY detects whether stdout is a terminal
+var isTTY = isatty.IsTerminal(os.Stdout.Fd()) || isatty.IsCygwinTerminal(os.Stdout.Fd())
 
 // Color palette
 var (
@@ -21,44 +26,78 @@ var (
 
 // Styles
 var (
-	TitleStyle = lipgloss.NewStyle().
+	TitleStyle     lipgloss.Style
+	SuccessStyle   lipgloss.Style
+	ErrorStyle     lipgloss.Style
+	WarningStyle   lipgloss.Style
+	InfoStyle      lipgloss.Style
+	MutedStyle     lipgloss.Style
+	BoldStyle      lipgloss.Style
+	KeyStyle       lipgloss.Style
+	ValueStyle     lipgloss.Style
+	HighlightStyle lipgloss.Style
+)
+
+func init() {
+	if isTTY {
+		TitleStyle = lipgloss.NewStyle().
 			Bold(true).
 			Foreground(Primary).
 			MarginBottom(1)
 
-	SuccessStyle = lipgloss.NewStyle().
+		SuccessStyle = lipgloss.NewStyle().
 			Foreground(Success).
 			Bold(true)
 
-	ErrorStyle = lipgloss.NewStyle().
+		ErrorStyle = lipgloss.NewStyle().
 			Foreground(Error).
 			Bold(true)
 
-	WarningStyle = lipgloss.NewStyle().
+		WarningStyle = lipgloss.NewStyle().
 			Foreground(Warning)
 
-	InfoStyle = lipgloss.NewStyle().
+		InfoStyle = lipgloss.NewStyle().
 			Foreground(Secondary)
 
-	MutedStyle = lipgloss.NewStyle().
+		MutedStyle = lipgloss.NewStyle().
 			Foreground(MutedColor)
 
-	BoldStyle = lipgloss.NewStyle().
+		BoldStyle = lipgloss.NewStyle().
 			Bold(true)
 
-	KeyStyle = lipgloss.NewStyle().
+		KeyStyle = lipgloss.NewStyle().
 			Foreground(MutedColor)
 
-	ValueStyle = lipgloss.NewStyle().
+		ValueStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("#E5E7EB"))
 
-	HighlightStyle = lipgloss.NewStyle().
+		HighlightStyle = lipgloss.NewStyle().
 			Foreground(Primary).
 			Bold(true)
-)
+	} else {
+		plain := lipgloss.NewStyle()
+		TitleStyle = plain
+		SuccessStyle = plain
+		ErrorStyle = plain
+		WarningStyle = plain
+		InfoStyle = plain
+		MutedStyle = plain
+		BoldStyle = plain
+		KeyStyle = plain
+		ValueStyle = plain
+		HighlightStyle = plain
+	}
+}
+
+func timestamp() string {
+	return time.Now().UTC().Format(time.RFC3339)
+}
 
 // Banner returns the ASCII art banner for Optimus
 func Banner() string {
+	if !isTTY {
+		return "OPTIMUS"
+	}
 	banner := `
  █▀▀█ █▀▀█ ▀▀█▀▀ ▀█▀ █▀▄▀█ █  █ █▀▀▀
  █  █ █▄▄█   █    █  █ █ █ █  █  ▀▀█
@@ -68,6 +107,9 @@ func Banner() string {
 
 // Divider returns a styled divider line
 func Divider() string {
+	if !isTTY {
+		return "---"
+	}
 	return MutedStyle.Render("──────────────────────────────────────────────")
 }
 
@@ -94,35 +136,58 @@ func PrintHeader(version string) {
 
 // Header returns a styled section header
 func Header(text string) string {
+	if !isTTY {
+		return text
+	}
 	return BoldStyle.Render("▸ " + text)
 }
 
 // PrintSuccess prints a success message with checkmark
 func PrintSuccess(format string, a ...interface{}) {
 	msg := fmt.Sprintf(format, a...)
+	if !isTTY {
+		fmt.Printf("%s  %s\n", timestamp(), msg)
+		return
+	}
 	fmt.Println(SuccessStyle.Render("✓ " + msg))
 }
 
 // PrintError prints an error message with X mark
 func PrintError(format string, a ...interface{}) {
 	msg := fmt.Sprintf(format, a...)
+	if !isTTY {
+		fmt.Printf("%s  ERROR %s\n", timestamp(), msg)
+		return
+	}
 	fmt.Println(ErrorStyle.Render("✗ " + msg))
 }
 
 // PrintWarning prints a warning message
 func PrintWarning(format string, a ...interface{}) {
 	msg := fmt.Sprintf(format, a...)
+	if !isTTY {
+		fmt.Printf("%s  WARN %s\n", timestamp(), msg)
+		return
+	}
 	fmt.Println(WarningStyle.Render("⚠ " + msg))
 }
 
 // PrintInfo prints an info message
 func PrintInfo(format string, a ...interface{}) {
 	msg := fmt.Sprintf(format, a...)
+	if !isTTY {
+		fmt.Printf("%s  %s\n", timestamp(), msg)
+		return
+	}
 	fmt.Println(InfoStyle.Render("• " + msg))
 }
 
 // PrintKeyValue prints a formatted key-value pair
 func PrintKeyValue(key, value string) {
+	if !isTTY {
+		fmt.Printf("%s  %s: %s\n", timestamp(), key, value)
+		return
+	}
 	fmt.Printf("%s: %s\n", KeyStyle.Render(key), ValueStyle.Render(value))
 }
 
@@ -156,6 +221,10 @@ func NewSpinner(msg string) *Spinner {
 		stop:  make(chan struct{}),
 		start: time.Now(),
 	}
+	if !isTTY {
+		fmt.Printf("%s  %s\n", timestamp(), msg)
+		return s
+	}
 	s.done.Add(1)
 	go s.run()
 	return s
@@ -185,10 +254,18 @@ func (s *Spinner) run() {
 // Update changes the spinner message while it's running
 func (s *Spinner) Update(msg string) {
 	s.msg = msg
+	if !isTTY {
+		fmt.Printf("%s  %s\n", timestamp(), msg)
+	}
 }
 
 // Finish stops the spinner and prints the final message with elapsed time
 func (s *Spinner) Finish() {
+	if !isTTY {
+		elapsed := time.Since(s.start).Truncate(time.Second)
+		fmt.Printf("%s  %s (%s)\n", timestamp(), s.msg, elapsed)
+		return
+	}
 	close(s.stop)
 	s.done.Wait()
 }

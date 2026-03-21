@@ -720,7 +720,7 @@ var htmlTemplate = `<!DOCTYPE html>
             </div>
             <h1>SEO Report</h1>
             <div class="site-url">{{.SiteURL}}</div>
-            <div class="meta">Analyzed {{.AnalyzedAt}} · {{.PagesAnalyzed}} pages scanned</div>
+            <div class="meta">Analyzed {{.AnalyzedAt}} · {{.PagesAnalyzed}} pages scanned{{if .Version}} · v{{.Version}}{{end}}</div>
         </header>
 
         <div class="summary">
@@ -1298,7 +1298,7 @@ var scorecardHTMLTemplate = `<!DOCTYPE html>
             </div>
             <h1>Rank Scorecard</h1>
             <div class="site-url">{{.SiteURL}}</div>
-            <div class="meta">Analyzed {{.AnalyzedAt}} · {{.PagesAnalyzed}} pages</div>
+            <div class="meta">Analyzed {{.AnalyzedAt}} · {{.PagesAnalyzed}} pages{{if .Version}} · v{{.Version}}{{end}}</div>
         </header>
 
         <!-- Overall Score Gauge -->
@@ -1526,7 +1526,7 @@ var backlinksHTMLTemplate = `<!DOCTYPE html>
                 <span class="logo-text">Optimus</span>
             </div>
             <h1>Backlink Strategy</h1>
-            <div class="subtitle">{{.SiteURL}} · {{.AnalyzedAt}} · {{.PagesAnalyzed}} pages analyzed</div>
+            <div class="subtitle">{{.SiteURL}} · {{.AnalyzedAt}} · {{.PagesAnalyzed}} pages analyzed{{if .Version}} · v{{.Version}}{{end}}</div>
         </header>
 
         <!-- Summary -->
