@@ -95,9 +95,6 @@ func timestamp() string {
 
 // Banner returns the ASCII art banner for Optimus
 func Banner() string {
-	if !isTTY {
-		return "OPTIMUS"
-	}
 	banner := `
  █▀▀█ █▀▀█ ▀▀█▀▀ ▀█▀ █▀▄▀█ █  █ █▀▀▀
  █  █ █▄▄█   █    █  █ █ █ █  █  ▀▀█
@@ -107,9 +104,6 @@ func Banner() string {
 
 // Divider returns a styled divider line
 func Divider() string {
-	if !isTTY {
-		return "---"
-	}
 	return MutedStyle.Render("──────────────────────────────────────────────")
 }
 
@@ -136,9 +130,6 @@ func PrintHeader(version string) {
 
 // Header returns a styled section header
 func Header(text string) string {
-	if !isTTY {
-		return text
-	}
 	return BoldStyle.Render("▸ " + text)
 }
 
