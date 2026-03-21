@@ -240,6 +240,7 @@ func handleReportOutput(result *engine.Result, baseDir string, pub publisher.Pub
 		OutputDir: baseDir,
 		CSS:       css,
 		LogoSVG:   logoSVG,
+		Version:   Version,
 	})
 	if err != nil {
 		fmt.Print("  ")
@@ -301,6 +302,7 @@ func handleFilesOutput(result *engine.Result, baseDir string, siteURL string, pu
 		OutputDir: outputDir,
 		CSS:       css,
 		LogoSVG:   logoSVG,
+		Version:   Version,
 	})
 	if err != nil {
 		fmt.Print("  ")
@@ -367,6 +369,7 @@ func handleBacklinksOutput(result *engine.Result, baseDir string, pub publisher.
 		OutputDir: baseDir,
 		CSS:       css,
 		LogoSVG:   logoSVG,
+		Version:   Version,
 	})
 	if err != nil {
 		fmt.Print("  ")
@@ -472,6 +475,7 @@ func handleScorecardOutput(result *engine.Result, baseDir string, pub publisher.
 		OutputDir: baseDir,
 		CSS:       css,
 		LogoSVG:   logoSVG,
+		Version:   Version,
 	})
 	if err != nil {
 		fmt.Print("  ")

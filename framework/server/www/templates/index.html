@@ -8,9 +8,28 @@
             <h1>SEO & AI Engine Optimization Services</h1>
             <h2>Maximize Your Search & AI Visibility</h2>
             <p>Optimus is a digital marketing agency specializing in Search Engine Optimization (SEO) and AI Engine Optimization (AEO). We help businesses increase organic search traffic, improve rankings on Google, and get cited by AI platforms including ChatGPT.</p>
-            <div class="hero-actions">
-                <a href="#contact" class="btn btn-primary btn-lg">Get Your Free Audit</a>
-                <a href="#services" class="btn btn-outline btn-lg">Our Services</a>
+            <div class="hero-audit-form" id="auditFormWrapper">
+                <form id="auditForm" class="hero-form-row">
+                    <input type="url" name="url" placeholder="https://yourwebsite.com" required>
+                    <button type="submit" class="btn btn-primary btn-lg">Get Free Audit</button>
+                </form>
+            </div>
+            <div class="hero-audit-status" id="auditStatus" style="display: none;">
+                <div class="audit-status-running" id="auditRunning">
+                    <div class="audit-spinner"><i class="fas fa-circle-notch fa-spin"></i></div>
+                    <p class="audit-status-text" id="auditStatusText">Starting your audit...</p>
+                    <p class="audit-status-detail" id="auditStatusDetail">This usually takes 1-2 minutes</p>
+                </div>
+                <div class="audit-status-done" id="auditDone" style="display: none;">
+                    <div class="audit-success-icon"><i class="fas fa-check-circle"></i></div>
+                    <p class="audit-status-text">Your SEO audit is ready!</p>
+                    <a class="btn btn-primary btn-lg" id="auditViewReport" href="#" target="_blank">View Report <i class="fas fa-external-link-alt"></i></a>
+                </div>
+                <div class="audit-status-error" id="auditError" style="display: none;">
+                    <div class="audit-error-icon"><i class="fas fa-exclamation-circle"></i></div>
+                    <p class="audit-status-text" id="auditErrorText">Something went wrong</p>
+                    <button class="btn btn-outline btn-lg" id="auditRetry">Try Again <i class="fas fa-redo"></i></button>
+                </div>
             </div>
             <div class="hero-stats">
                 <div class="stat">

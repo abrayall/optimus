@@ -30,6 +30,7 @@ type Job struct {
 // JobRequest holds the input parameters for a job
 type JobRequest struct {
 	URL          string `json:"url"`
+	Email        string `json:"email"`
 	Name         string `json:"name"`
 	Skill        string `json:"skill"`
 	Count        int    `json:"count"`
@@ -154,7 +155,7 @@ func (s *Server) runJob(job *Job) {
 			return
 		}
 		s.setResult(job, report)
-		renderResult, err = render.Generate(render.Config{Report: report, OutputDir: baseDir, CSS: css, LogoSVG: logoSVG})
+		renderResult, err = render.Generate(render.Config{Report: report, OutputDir: baseDir, CSS: css, LogoSVG: logoSVG, Version: Version})
 		if err != nil {
 			s.failJob(job, fmt.Sprintf("rendering report: %s", err))
 			return
@@ -167,7 +168,7 @@ func (s *Server) runJob(job *Job) {
 			return
 		}
 		s.setResult(job, scorecard)
-		renderResult, err = render.GenerateScorecard(render.ScorecardConfig{Scorecard: scorecard, OutputDir: baseDir, CSS: css, LogoSVG: logoSVG})
+		renderResult, err = render.GenerateScorecard(render.ScorecardConfig{Scorecard: scorecard, OutputDir: baseDir, CSS: css, LogoSVG: logoSVG, Version: Version})
 		if err != nil {
 			s.failJob(job, fmt.Sprintf("rendering scorecard: %s", err))
 			return
@@ -180,7 +181,7 @@ func (s *Server) runJob(job *Job) {
 			return
 		}
 		s.setResult(job, strategy)
-		renderResult, err = render.GenerateBacklinks(render.BacklinksConfig{Strategy: strategy, OutputDir: baseDir, CSS: css, LogoSVG: logoSVG})
+		renderResult, err = render.GenerateBacklinks(render.BacklinksConfig{Strategy: strategy, OutputDir: baseDir, CSS: css, LogoSVG: logoSVG, Version: Version})
 		if err != nil {
 			s.failJob(job, fmt.Sprintf("rendering backlinks: %s", err))
 			return
@@ -201,6 +202,7 @@ func (s *Server) runJob(job *Job) {
 			OutputDir: outputDir,
 			CSS:       css,
 			LogoSVG:   logoSVG,
+			Version:   Version,
 		})
 		if err != nil {
 			s.failJob(job, fmt.Sprintf("rendering files: %s", err))

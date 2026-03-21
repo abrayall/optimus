@@ -51,29 +51,141 @@
         });
     });
 
-    // Contact form handling
-    var form = document.getElementById('contactForm');
-    if (form) {
-        form.addEventListener('submit', function (e) {
+    // Hero audit form handling
+    var auditForm = document.getElementById('auditForm');
+    var auditFormWrapper = document.getElementById('auditFormWrapper');
+    var auditStatus = document.getElementById('auditStatus');
+    var auditRunning = document.getElementById('auditRunning');
+    var auditDone = document.getElementById('auditDone');
+    var auditError = document.getElementById('auditError');
+    var auditStatusText = document.getElementById('auditStatusText');
+    var auditStatusDetail = document.getElementById('auditStatusDetail');
+    var auditErrorText = document.getElementById('auditErrorText');
+    var auditViewReport = document.getElementById('auditViewReport');
+    var auditRetry = document.getElementById('auditRetry');
+
+    var statusMessages = {
+        scraping: 'Scanning your website...',
+        analyzing: 'Running SEO analysis...',
+        rendering: 'Generating your report...',
+        publishing: 'Almost done...'
+    };
+
+    function showAuditStatus() {
+        auditFormWrapper.style.display = 'none';
+        auditStatus.style.display = 'block';
+        auditRunning.style.display = 'block';
+        auditDone.style.display = 'none';
+        auditError.style.display = 'none';
+        auditStatusText.textContent = 'Starting your audit...';
+        auditStatusDetail.textContent = 'This usually takes 1-2 minutes';
+    }
+
+    function setJobCookie(jobId) {
+        document.cookie = 'optimus_job=' + jobId + ';path=/;max-age=86400';
+    }
+
+    function getJobCookie() {
+        var match = document.cookie.match('(^|;)\\s*optimus_job=([^;]+)');
+        return match ? match[2] : null;
+    }
+
+    function clearJobCookie() {
+        document.cookie = 'optimus_job=;path=/;max-age=0';
+    }
+
+    function showAuditDone(reportURL) {
+        auditRunning.style.display = 'none';
+        auditDone.style.display = 'block';
+        auditFormWrapper.style.display = 'none';
+        auditStatus.style.display = 'block';
+        auditViewReport.href = reportURL || '#';
+    }
+
+    function showAuditError(message) {
+        auditRunning.style.display = 'none';
+        auditError.style.display = 'block';
+        auditErrorText.textContent = message || 'Something went wrong';
+        clearJobCookie();
+    }
+
+    function resetAuditForm() {
+        auditFormWrapper.style.display = 'block';
+        auditStatus.style.display = 'none';
+        auditForm.reset();
+        clearJobCookie();
+    }
+
+    function pollJob(jobId, autoOpen) {
+        fetch('/api/jobs/' + jobId)
+            .then(function (res) {
+                if (!res.ok) {
+                    clearJobCookie();
+                    resetAuditForm();
+                    return null;
+                }
+                return res.json();
+            })
+            .then(function (job) {
+                if (!job) return;
+                if (job.status === 'completed') {
+                    var reportURL = job.published && job.published.HTMLURL;
+                    if (reportURL && autoOpen) {
+                        window.open(reportURL, '_blank');
+                    }
+                    showAuditDone(reportURL);
+                } else if (job.status === 'failed') {
+                    showAuditError(job.error || 'The audit failed. Please try again.');
+                } else {
+                    var msg = statusMessages[job.status];
+                    if (msg) {
+                        auditStatusText.textContent = msg;
+                    }
+                    setTimeout(function () { pollJob(jobId, autoOpen); }, 3000);
+                }
+            })
+            .catch(function () {
+                showAuditError('Lost connection. Please try again.');
+            });
+    }
+
+    // Check for in-progress or completed job on page load
+    var existingJobId = getJobCookie();
+    if (existingJobId && auditFormWrapper) {
+        showAuditStatus();
+        pollJob(existingJobId, false);
+    }
+
+    if (auditForm) {
+        auditForm.addEventListener('submit', function (e) {
             e.preventDefault();
-            var btn = form.querySelector('button[type="submit"]');
-            var originalText = btn.innerHTML;
-            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending...';
-            btn.disabled = true;
+            var url = auditForm.querySelector('input[name="url"]').value;
 
-            setTimeout(function () {
-                btn.innerHTML = '<i class="fas fa-check"></i> Audit Requested!';
-                btn.style.background = '#059669';
-                btn.style.borderColor = '#059669';
-                form.reset();
+            showAuditStatus();
 
-                setTimeout(function () {
-                    btn.innerHTML = originalText;
-                    btn.style.background = '';
-                    btn.style.borderColor = '';
-                    btn.disabled = false;
-                }, 3000);
-            }, 1500);
+            fetch('/api/jobs', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ url: url, skill: 'seo' })
+            })
+                .then(function (res) { return res.json(); })
+                .then(function (job) {
+                    if (job.id) {
+                        setJobCookie(job.id);
+                        pollJob(job.id, true);
+                    } else {
+                        showAuditError('Failed to start audit. Please try again.');
+                    }
+                })
+                .catch(function () {
+                    showAuditError('Failed to start audit. Please try again.');
+                });
+        });
+    }
+
+    if (auditRetry) {
+        auditRetry.addEventListener('click', function () {
+            resetAuditForm();
         });
     }
 

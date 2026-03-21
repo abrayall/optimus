@@ -17,6 +17,7 @@ type Config struct {
 	OutputDir string
 	CSS       string
 	LogoSVG   string
+	Version   string
 }
 
 // ScorecardConfig holds scorecard renderer configuration
@@ -25,6 +26,7 @@ type ScorecardConfig struct {
 	OutputDir string
 	CSS       string
 	LogoSVG   string
+	Version   string
 }
 
 // BacklinksConfig holds backlinks renderer configuration
@@ -33,6 +35,7 @@ type BacklinksConfig struct {
 	OutputDir string
 	CSS       string
 	LogoSVG   string
+	Version   string
 }
 
 // FilesConfig holds files renderer configuration
@@ -43,6 +46,7 @@ type FilesConfig struct {
 	OutputDir string
 	CSS       string
 	LogoSVG   string
+	Version   string
 }
 
 // Result holds renderer output
@@ -56,18 +60,21 @@ type reportData struct {
 	*engine.Report
 	CSS     template.CSS
 	LogoSVG template.HTML
+	Version string
 }
 
 type scorecardData struct {
 	*engine.Scorecard
 	CSS     template.CSS
 	LogoSVG template.HTML
+	Version string
 }
 
 type backlinksData struct {
 	*engine.BacklinkStrategy
 	CSS     template.CSS
 	LogoSVG template.HTML
+	Version string
 }
 
 type filesData struct {
@@ -76,6 +83,7 @@ type filesData struct {
 	SkillName string
 	CSS       template.CSS
 	LogoSVG   template.HTML
+	Version   string
 }
 
 // Generate creates both JSON and HTML reports
@@ -93,7 +101,7 @@ func Generate(cfg Config) (*Result, error) {
 	}
 
 	// Write HTML report
-	if err := writeHTML(cfg.Report, cfg.CSS, cfg.LogoSVG, htmlPath); err != nil {
+	if err := writeHTML(cfg.Report, cfg.CSS, cfg.LogoSVG, cfg.Version, htmlPath); err != nil {
 		return nil, fmt.Errorf("writing HTML report: %w", err)
 	}
 
@@ -147,7 +155,7 @@ func GenerateScorecard(cfg ScorecardConfig) (*Result, error) {
 	}
 
 	// Write HTML
-	if err := writeScorecardHTML(cfg.Scorecard, cfg.CSS, cfg.LogoSVG, htmlPath); err != nil {
+	if err := writeScorecardHTML(cfg.Scorecard, cfg.CSS, cfg.LogoSVG, cfg.Version, htmlPath); err != nil {
 		return nil, fmt.Errorf("writing scorecard HTML: %w", err)
 	}
 
@@ -176,7 +184,7 @@ func GenerateBacklinks(cfg BacklinksConfig) (*Result, error) {
 	}
 
 	// Write HTML
-	if err := writeBacklinksHTML(cfg.Strategy, cfg.CSS, cfg.LogoSVG, htmlPath); err != nil {
+	if err := writeBacklinksHTML(cfg.Strategy, cfg.CSS, cfg.LogoSVG, cfg.Version, htmlPath); err != nil {
 		return nil, fmt.Errorf("writing backlinks HTML: %w", err)
 	}
 
@@ -186,7 +194,7 @@ func GenerateBacklinks(cfg BacklinksConfig) (*Result, error) {
 	}, nil
 }
 
-func writeBacklinksHTML(bs *engine.BacklinkStrategy, css, logoSVG, path string) error {
+func writeBacklinksHTML(bs *engine.BacklinkStrategy, css, logoSVG, version, path string) error {
 	tmpl, err := template.New("backlinks").Funcs(template.FuncMap{
 		"strategyIcon":  strategyIcon,
 		"difficultyTag": difficultyTag,
@@ -207,6 +215,7 @@ func writeBacklinksHTML(bs *engine.BacklinkStrategy, css, logoSVG, path string) 
 		BacklinkStrategy: bs,
 		CSS:              template.CSS(css),
 		LogoSVG:          template.HTML(logoSVG),
+		Version:          version,
 	}
 	return tmpl.Execute(f, data)
 }
@@ -262,7 +271,7 @@ func impactTag(impact string) string {
 	}
 }
 
-func writeScorecardHTML(sc *engine.Scorecard, css, logoSVG, path string) error {
+func writeScorecardHTML(sc *engine.Scorecard, css, logoSVG, version, path string) error {
 	tmpl, err := template.New("scorecard").Funcs(template.FuncMap{
 		"scorecardColor": scorecardColor,
 		"scorecardLabel": scorecardLabel,
@@ -282,6 +291,7 @@ func writeScorecardHTML(sc *engine.Scorecard, css, logoSVG, path string) error {
 		Scorecard: sc,
 		CSS:       template.CSS(css),
 		LogoSVG:   template.HTML(logoSVG),
+		Version:   version,
 	}
 	return tmpl.Execute(f, data)
 }
@@ -335,6 +345,7 @@ func writeFilesHTML(cfg FilesConfig, path string) error {
 		SkillName: cfg.SkillName,
 		CSS:       template.CSS(cfg.CSS),
 		LogoSVG:   template.HTML(cfg.LogoSVG),
+		Version:   cfg.Version,
 	}
 	return tmpl.Execute(f, data)
 }
@@ -349,7 +360,7 @@ func writeJSON(report *engine.Report, path string) error {
 }
 
 // writeHTML generates an HTML report
-func writeHTML(report *engine.Report, css, logoSVG, path string) error {
+func writeHTML(report *engine.Report, css, logoSVG, version, path string) error {
 	tmpl, err := template.New("report").Funcs(template.FuncMap{
 		"priorityColor": priorityColor,
 		"priorityIcon":  priorityIcon,
@@ -372,6 +383,7 @@ func writeHTML(report *engine.Report, css, logoSVG, path string) error {
 		Report:  report,
 		CSS:     template.CSS(css),
 		LogoSVG: template.HTML(logoSVG),
+		Version: version,
 	}
 	return tmpl.Execute(f, data)
 }
@@ -439,6 +451,7 @@ var htmlTemplate = `<!DOCTYPE html>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Optimus SEO Report — {{.SiteURL}}</title>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg fill='%230090C1' viewBox='0 0 32 32' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M25.115 5.265l0.045-1.455c-2.694-1.348-5.686-2.155-8.973-2.155s-6.653 0.807-9.347 2.155l0.045 1.455 9.115 5.981 9.115-5.981zM16 4.556c1.875 0 3.448 0.601 3.448 0.601l-3.448 2.317-3.448-2.317c0 0 1.573-0.601 3.448-0.601zM18.073 23.977v-7.020l0.468-6.035-2.541 1.671-2.479-1.671 0.53 6.035v7.020h4.022zM12.39 10.276l-6.789-4.526-0.045-1.761h-3.996l0.593 8.55 4.85 3.466h5.927l-0.54-5.729zM4.685 10.653l6.412 3.018 0.107 0.989-6.357-2.875-0.162-1.132zM4.415 7.582l6.358 3.071 0.161 1.069-6.411-2.955-0.108-1.185zM4.308 26.549l4.735 2.424v-9.412l-2.796-1.74v-1.078l-2.748-1.886 0.809 11.692zM13.054 24.992v-7.012l-3.071 1.562v10.186l1.384 0.861 1.886-4.598h5.496l1.886 4.598 1.446-0.861v-10.185l-3.071-1.562v7.012h-5.956zM14.168 27.070l-1.401 3.932h6.466l-1.4-3.932h-3.665zM19.071 16.004h5.927l4.85-3.466 0.593-8.55h-3.996l-0.046 1.762-6.79 4.526-0.538 5.728zM27.153 11.785l-6.421 3 0.171-1.114 6.412-3.018-0.162 1.132zM27.477 8.767l-6.412 3.018 0.162-1.132 6.358-3.071-0.108 1.185zM28.5 14.856l-2.747 1.886v1.078l-2.755 1.74v9.412l4.694-2.424 0.808-11.692z'/%3E%3C/svg%3E">
     <style>{{.CSS}}</style>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -785,7 +798,7 @@ var htmlTemplate = `<!DOCTYPE html>
         </div>
 
         <div class="report-footer">
-            Generated by <strong>Optimus</strong>
+            Generated by <strong>Optimus</strong>{{if .Version}} <span style="opacity:0.5">v{{.Version}}</span>{{end}}
         </div>
     </div>
 
@@ -821,6 +834,7 @@ var filesHTMLTemplate = `<!DOCTYPE html>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Optimus {{.SkillName}} — {{.SiteURL}}</title>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg fill='%230090C1' viewBox='0 0 32 32' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M25.115 5.265l0.045-1.455c-2.694-1.348-5.686-2.155-8.973-2.155s-6.653 0.807-9.347 2.155l0.045 1.455 9.115 5.981 9.115-5.981zM16 4.556c1.875 0 3.448 0.601 3.448 0.601l-3.448 2.317-3.448-2.317c0 0 1.573-0.601 3.448-0.601zM18.073 23.977v-7.020l0.468-6.035-2.541 1.671-2.479-1.671 0.53 6.035v7.020h4.022zM12.39 10.276l-6.789-4.526-0.045-1.761h-3.996l0.593 8.55 4.85 3.466h5.927l-0.54-5.729zM4.685 10.653l6.412 3.018 0.107 0.989-6.357-2.875-0.162-1.132zM4.415 7.582l6.358 3.071 0.161 1.069-6.411-2.955-0.108-1.185zM4.308 26.549l4.735 2.424v-9.412l-2.796-1.74v-1.078l-2.748-1.886 0.809 11.692zM13.054 24.992v-7.012l-3.071 1.562v10.186l1.384 0.861 1.886-4.598h5.496l1.886 4.598 1.446-0.861v-10.185l-3.071-1.562v7.012h-5.956zM14.168 27.070l-1.401 3.932h6.466l-1.4-3.932h-3.665zM19.071 16.004h5.927l4.85-3.466 0.593-8.55h-3.996l-0.046 1.762-6.79 4.526-0.538 5.728zM27.153 11.785l-6.421 3 0.171-1.114 6.412-3.018-0.162 1.132zM27.477 8.767l-6.412 3.018 0.162-1.132 6.358-3.071-0.108 1.185zM28.5 14.856l-2.747 1.886v1.078l-2.755 1.74v9.412l4.694-2.424 0.808-11.692z'/%3E%3C/svg%3E">
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <style>{{.CSS}}</style>
     <style>
@@ -1040,7 +1054,7 @@ var filesHTMLTemplate = `<!DOCTYPE html>
         {{end}}
 
         <div class="report-footer">
-            Generated by <strong>Optimus</strong>
+            Generated by <strong>Optimus</strong>{{if .Version}} <span style="opacity:0.5">v{{.Version}}</span>{{end}}
         </div>
     </div>
 
@@ -1072,6 +1086,7 @@ var scorecardHTMLTemplate = `<!DOCTYPE html>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Optimus Rank Scorecard — {{.SiteURL}}</title>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg fill='%230090C1' viewBox='0 0 32 32' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M25.115 5.265l0.045-1.455c-2.694-1.348-5.686-2.155-8.973-2.155s-6.653 0.807-9.347 2.155l0.045 1.455 9.115 5.981 9.115-5.981zM16 4.556c1.875 0 3.448 0.601 3.448 0.601l-3.448 2.317-3.448-2.317c0 0 1.573-0.601 3.448-0.601zM18.073 23.977v-7.020l0.468-6.035-2.541 1.671-2.479-1.671 0.53 6.035v7.020h4.022zM12.39 10.276l-6.789-4.526-0.045-1.761h-3.996l0.593 8.55 4.85 3.466h5.927l-0.54-5.729zM4.685 10.653l6.412 3.018 0.107 0.989-6.357-2.875-0.162-1.132zM4.415 7.582l6.358 3.071 0.161 1.069-6.411-2.955-0.108-1.185zM4.308 26.549l4.735 2.424v-9.412l-2.796-1.74v-1.078l-2.748-1.886 0.809 11.692zM13.054 24.992v-7.012l-3.071 1.562v10.186l1.384 0.861 1.886-4.598h5.496l1.886 4.598 1.446-0.861v-10.185l-3.071-1.562v7.012h-5.956zM14.168 27.070l-1.401 3.932h6.466l-1.4-3.932h-3.665zM19.071 16.004h5.927l4.85-3.466 0.593-8.55h-3.996l-0.046 1.762-6.79 4.526-0.538 5.728zM27.153 11.785l-6.421 3 0.171-1.114 6.412-3.018-0.162 1.132zM27.477 8.767l-6.412 3.018 0.162-1.132 6.358-3.071-0.108 1.185zM28.5 14.856l-2.747 1.886v1.078l-2.755 1.74v9.412l4.694-2.424 0.808-11.692z'/%3E%3C/svg%3E">
     <style>{{.CSS}}</style>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -1422,7 +1437,7 @@ var scorecardHTMLTemplate = `<!DOCTYPE html>
         {{end}}
 
         <div class="report-footer">
-            Generated by <strong>Optimus</strong>
+            Generated by <strong>Optimus</strong>{{if .Version}} <span style="opacity:0.5">v{{.Version}}</span>{{end}}
         </div>
     </div>
 </body>
@@ -1434,6 +1449,7 @@ var backlinksHTMLTemplate = `<!DOCTYPE html>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Backlink Strategy — {{.SiteURL}}</title>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg fill='%230090C1' viewBox='0 0 32 32' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M25.115 5.265l0.045-1.455c-2.694-1.348-5.686-2.155-8.973-2.155s-6.653 0.807-9.347 2.155l0.045 1.455 9.115 5.981 9.115-5.981zM16 4.556c1.875 0 3.448 0.601 3.448 0.601l-3.448 2.317-3.448-2.317c0 0 1.573-0.601 3.448-0.601zM18.073 23.977v-7.020l0.468-6.035-2.541 1.671-2.479-1.671 0.53 6.035v7.020h4.022zM12.39 10.276l-6.789-4.526-0.045-1.761h-3.996l0.593 8.55 4.85 3.466h5.927l-0.54-5.729zM4.685 10.653l6.412 3.018 0.107 0.989-6.357-2.875-0.162-1.132zM4.415 7.582l6.358 3.071 0.161 1.069-6.411-2.955-0.108-1.185zM4.308 26.549l4.735 2.424v-9.412l-2.796-1.74v-1.078l-2.748-1.886 0.809 11.692zM13.054 24.992v-7.012l-3.071 1.562v10.186l1.384 0.861 1.886-4.598h5.496l1.886 4.598 1.446-0.861v-10.185l-3.071-1.562v7.012h-5.956zM14.168 27.070l-1.401 3.932h6.466l-1.4-3.932h-3.665zM19.071 16.004h5.927l4.85-3.466 0.593-8.55h-3.996l-0.046 1.762-6.79 4.526-0.538 5.728zM27.153 11.785l-6.421 3 0.171-1.114 6.412-3.018-0.162 1.132zM27.477 8.767l-6.412 3.018 0.162-1.132 6.358-3.071-0.108 1.185zM28.5 14.856l-2.747 1.886v1.078l-2.755 1.74v9.412l4.694-2.424 0.808-11.692z'/%3E%3C/svg%3E">
     <style>{{.CSS}}</style>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -1552,7 +1568,7 @@ var backlinksHTMLTemplate = `<!DOCTYPE html>
         {{end}}
 
         <div class="report-footer">
-            Generated by <strong>Optimus</strong>
+            Generated by <strong>Optimus</strong>{{if .Version}} <span style="opacity:0.5">v{{.Version}}</span>{{end}}
         </div>
     </div>
 </body>

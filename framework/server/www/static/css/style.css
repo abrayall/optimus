@@ -290,6 +290,90 @@ img {
     margin-bottom: 60px;
 }
 
+/* Hero Audit Form */
+.hero-audit-form {
+    margin-bottom: 60px;
+}
+
+.hero-form-row {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+    flex-wrap: wrap;
+    max-width: 700px;
+    margin: 0 auto;
+}
+
+.hero-form-row input {
+    flex: 1;
+    min-width: 200px;
+    padding: 16px 20px;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-radius: var(--radius-sm);
+    font-size: 1rem;
+    font-family: inherit;
+    background: var(--white);
+    color: var(--text);
+    transition: border-color var(--transition), box-shadow var(--transition);
+}
+
+.hero-form-row input::placeholder {
+    color: var(--text-light);
+}
+
+.hero-form-row input:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(4, 110, 143, 0.2);
+}
+
+.hero-form-row .btn {
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+/* Hero Audit Status */
+.hero-audit-status {
+    text-align: center;
+    margin-bottom: 60px;
+}
+
+.audit-spinner {
+    font-size: 2.5rem;
+    color: var(--mint);
+    margin-bottom: 0;
+}
+
+.audit-status-text {
+    font-size: 1.2rem;
+    font-weight: 600;
+    color: var(--white);
+    margin-bottom: 8px;
+}
+
+.audit-status-detail {
+    font-size: 12px !important;
+    color: var(--mint) !important;
+    margin-top: -35px !important;
+}
+
+.audit-success-icon {
+    font-size: 3rem;
+    color: #34d399;
+    margin-bottom: 20px;
+}
+
+.audit-error-icon {
+    font-size: 3rem;
+    color: #f87171;
+    margin-bottom: 20px;
+}
+
+.audit-status-done .btn,
+.audit-status-error .btn {
+    margin-top: 0;
+}
+
 .hero-stats {
     display: flex;
     justify-content: center;
@@ -1352,6 +1436,18 @@ img {
     }
 
     .hero-actions .btn {
+        width: 100%;
+    }
+
+    .hero-form-row {
+        flex-direction: column;
+    }
+
+    .hero-form-row input {
+        min-width: 0;
+    }
+
+    .hero-form-row .btn {
         width: 100%;
     }
 
