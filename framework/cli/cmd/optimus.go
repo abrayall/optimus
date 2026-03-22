@@ -69,12 +69,14 @@ func runOptimus(cmd *cobra.Command, args []string) {
 		}
 	}
 
-	// Validate skill exists before doing any work (skip for "all" mode)
+	// Validate skill(s) before doing any work (skip for "all" mode)
 	if optimusSkill != "all" {
-		if _, err := engine.LoadSkill(optimusSkill); err != nil {
-			available := engine.ListSkills()
-			ui.PrintError("Skill %q not found. Available skills: all, %s", optimusSkill, strings.Join(available, ", "))
-			os.Exit(1)
+		for _, sk := range engine.ParseSkills(optimusSkill) {
+			if _, err := engine.LoadSkill(sk); err != nil {
+				available := engine.ListSkills()
+				ui.PrintError("Skill %q not found. Available skills: all, %s", sk, strings.Join(available, ", "))
+				os.Exit(1)
+			}
 		}
 	}
 
@@ -184,7 +186,9 @@ func runOptimus(cmd *cobra.Command, args []string) {
 
 	pub := createPublisher(name)
 
-	if optimusSkill == "all" {
+	// Parse skills — supports "all" and comma-separated (e.g. "seo,aeo")
+	skills := engine.ParseSkills(optimusSkill)
+	if len(skills) > 1 {
 		handleCombinedOutput(cfg, baseDir, targetURL, pub)
 		return
 	}
@@ -192,6 +196,7 @@ func runOptimus(cmd *cobra.Command, args []string) {
 	fmt.Println(ui.Header("Phase 2: Running skill with AI"))
 	fmt.Println()
 
+	cfg.Skill = skills[0]
 	result, err := engine.Run(cfg)
 	if err != nil {
 		fmt.Print("  ")
@@ -705,13 +710,13 @@ func createPublisher(siteName string) publisher.Publisher {
 	}
 }
 
-// handleCombinedOutput runs all skills and generates a combined tabbed report
+// handleCombinedOutput runs selected skills and generates a combined tabbed report
 func handleCombinedOutput(cfg engine.Config, baseDir string, siteURL string, pub publisher.Publisher) {
-	skills := engine.AnalysisSkills()
+	skills := engine.ParseSkills(cfg.Skill)
 	fmt.Println(ui.Header(fmt.Sprintf("Phase 2: Running %d skills with AI", len(skills))))
 	fmt.Println()
 
-	fullResult, err := engine.RunAll(cfg)
+	fullResult, err := engine.RunSkills(cfg, skills)
 	if err != nil {
 		fmt.Print("  ")
 		ui.PrintError("Analysis failed: %s", err)

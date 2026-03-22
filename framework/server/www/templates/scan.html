@@ -1,0 +1,86 @@
+{{ template "header" . }}
+
+    <!-- Scan Section -->
+    <section class="scan-section">
+        <div class="container">
+            <div class="section-header">
+                <span class="section-tag">Advanced Scan</span>
+                <h2>Run a Custom Audit</h2>
+                <p>Select the analyses you want to run and get a detailed report for your website.</p>
+            </div>
+
+            <div class="scan-form-wrapper" id="scanFormWrapper">
+                <form id="scanForm" class="scan-form">
+                    <div class="form-group">
+                        <label for="scanUrl">Website URL</label>
+                        <input type="url" id="scanUrl" name="url" placeholder="https://yourwebsite.com" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Select Analyses</label>
+                        <div class="skill-checkboxes">
+                            <label class="skill-checkbox">
+                                <input type="checkbox" id="selectAll" checked>
+                                <span class="skill-checkbox-mark"></span>
+                                <span class="skill-checkbox-label">Select All</span>
+                            </label>
+                            <label class="skill-checkbox">
+                                <input type="checkbox" name="skill" value="rank" class="skill-check" checked>
+                                <span class="skill-checkbox-mark"></span>
+                                <span class="skill-checkbox-label">Ranking Scorecard</span>
+                            </label>
+                            <label class="skill-checkbox">
+                                <input type="checkbox" name="skill" value="seo" class="skill-check" checked>
+                                <span class="skill-checkbox-mark"></span>
+                                <span class="skill-checkbox-label">SEO Analysis</span>
+                            </label>
+                            <label class="skill-checkbox">
+                                <input type="checkbox" name="skill" value="aeo" class="skill-check" checked>
+                                <span class="skill-checkbox-mark"></span>
+                                <span class="skill-checkbox-label">AEO Analysis</span>
+                            </label>
+                            <label class="skill-checkbox">
+                                <input type="checkbox" name="skill" value="keywords" class="skill-check" checked>
+                                <span class="skill-checkbox-mark"></span>
+                                <span class="skill-checkbox-label">Keyword Research</span>
+                            </label>
+                            <label class="skill-checkbox">
+                                <input type="checkbox" name="skill" value="backlinks" class="skill-check" checked>
+                                <span class="skill-checkbox-mark"></span>
+                                <span class="skill-checkbox-label">Backlink Strategy</span>
+                            </label>
+                            <label class="skill-checkbox">
+                                <input type="checkbox" name="skill" value="blog" class="skill-check" checked>
+                                <span class="skill-checkbox-mark"></span>
+                                <span class="skill-checkbox-label">Blog Content</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary btn-lg btn-block">Start Scan <i class="fas fa-search"></i></button>
+                </form>
+            </div>
+
+            <div class="scan-status" id="scanStatus" style="display: none;">
+                <div class="scan-status-running" id="scanRunning">
+                    <div class="audit-spinner"><i class="fas fa-circle-notch fa-spin"></i></div>
+                    <p class="audit-status-text" id="scanStatusText">Starting scan...</p>
+                    <p class="audit-status-detail" id="scanStatusDetail">This may take a few minutes</p>
+                </div>
+                <div class="audit-status-done" id="scanDone" style="display: none;">
+                    <div class="audit-success-icon"><i class="fas fa-check-circle"></i></div>
+                    <p class="audit-status-text">Scan complete!</p>
+                    <p class="scan-done-detail">Your report has been generated and is ready to view.</p>
+                    <a class="btn btn-primary btn-lg" id="scanViewReport" href="#" target="_blank">View Report <i class="fas fa-external-link-alt"></i></a>
+                </div>
+                <div class="audit-status-error" id="scanError" style="display: none;">
+                    <div class="audit-error-icon"><i class="fas fa-exclamation-circle"></i></div>
+                    <p class="audit-status-text" id="scanErrorText">Something went wrong</p>
+                    <button class="btn btn-outline btn-lg" id="scanRetry">Try Again <i class="fas fa-redo"></i></button>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <script src="/static/js/scan.js"></script>
+{{ template "footer" . }}

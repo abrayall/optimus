@@ -350,10 +350,48 @@ func AnalysisSkills() []string {
 	return []string{"rank", "seo", "aeo", "keywords", "backlinks", "blog"}
 }
 
-// RunAll executes all analysis skills sequentially, capturing per-skill errors
-func RunAll(cfg Config) (*FullResult, error) {
+// ParseSkills splits a comma-separated skill string into individual skill names.
+// If the input is "all", it returns AnalysisSkills().
+func ParseSkills(skill string) []string {
+	skill = strings.TrimSpace(skill)
+	if skill == "" || skill == "all" {
+		return AnalysisSkills()
+	}
+	parts := strings.Split(skill, ",")
+	var skills []string
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p != "" {
+			skills = append(skills, p)
+		}
+	}
+	return skills
+}
+
+// SkillStatusMessage returns a human-readable status message for a given skill name
+func SkillStatusMessage(skillName string) string {
+	switch skillName {
+	case "rank":
+		return "Building ranking report..."
+	case "seo":
+		return "Analyzing SEO..."
+	case "aeo":
+		return "Analyzing AI engine optimization..."
+	case "keywords":
+		return "Researching keywords..."
+	case "backlinks":
+		return "Analyzing backlinks..."
+	case "blog":
+		return "Generating blog content..."
+	default:
+		return fmt.Sprintf("Running %s analysis...", skillName)
+	}
+}
+
+// RunSkills executes a specific list of skills sequentially, capturing per-skill errors
+func RunSkills(cfg Config, skills []string) (*FullResult, error) {
 	full := &FullResult{}
-	for _, skillName := range AnalysisSkills() {
+	for _, skillName := range skills {
 		cfg.Skill = skillName
 		result, err := Run(cfg)
 		sr := &SkillResult{SessionID: ""}
@@ -370,6 +408,11 @@ func RunAll(cfg Config) (*FullResult, error) {
 		full.Skills = append(full.Skills, sr)
 	}
 	return full, nil
+}
+
+// RunAll executes all analysis skills sequentially, capturing per-skill errors
+func RunAll(cfg Config) (*FullResult, error) {
+	return RunSkills(cfg, AnalysisSkills())
 }
 
 // Run uses Claude to execute a skill on scraped pages

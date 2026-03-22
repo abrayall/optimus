@@ -7,8 +7,10 @@
     const header = document.getElementById('header');
     const scrollTop = document.getElementById('scrollTop');
 
+    var headerSolid = header.hasAttribute('data-solid');
+
     function onScroll() {
-        const scrolled = window.scrollY > 50;
+        const scrolled = headerSolid || window.scrollY > 50;
         header.classList.toggle('scrolled', scrolled);
         scrollTop.classList.toggle('visible', window.scrollY > 400);
     }
@@ -137,7 +139,7 @@
                 } else if (job.status === 'failed') {
                     showAuditError(job.error || 'The audit failed. Please try again.');
                 } else {
-                    var msg = statusMessages[job.status];
+                    var msg = job.status_message || statusMessages[job.status];
                     if (msg) {
                         auditStatusText.textContent = msg;
                     }
