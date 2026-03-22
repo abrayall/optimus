@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/subtle"
 	"fmt"
 	"net/http"
 	"strings"
@@ -55,9 +56,12 @@ func (s *Server) registerRoutes() {
 	// Pages
 	s.mux.HandleFunc("GET /{$}", s.handleIndex)
 	s.mux.HandleFunc("GET /blog", s.handleBlog)
+	s.mux.HandleFunc("GET /scan", s.handleScan)
+	s.mux.HandleFunc("GET /reports", s.basicAuth(s.handleReports))
 
 	// API
 	s.mux.HandleFunc("GET /api/health", s.handleHealth)
+	s.mux.HandleFunc("GET /api/reports", s.basicAuth(s.handleListReports))
 	s.mux.HandleFunc("GET /api/skills", s.handleListSkills)
 	s.mux.HandleFunc("POST /api/jobs", s.handleCreateJob)
 	s.mux.HandleFunc("GET /api/jobs", s.handleListJobs)
@@ -125,6 +129,21 @@ func (s *Server) Start() error {
 	fmt.Println()
 
 	return http.ListenAndServe(addr, s.cors(s.mux))
+}
+
+// basicAuth wraps a handler with HTTP basic auth (optimus/prime)
+func (s *Server) basicAuth(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		user, pass, ok := r.BasicAuth()
+		if !ok ||
+			subtle.ConstantTimeCompare([]byte(user), []byte("optimus")) != 1 ||
+			subtle.ConstantTimeCompare([]byte(pass), []byte("prime")) != 1 {
+			w.Header().Set("WWW-Authenticate", `Basic realm="optimus"`)
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+		next(w, r)
+	}
 }
 
 // cors wraps a handler with permissive CORS headers

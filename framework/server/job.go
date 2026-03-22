@@ -17,14 +17,15 @@ import (
 
 // Job represents an async pipeline job
 type Job struct {
-	ID        string           `json:"id"`
-	Status    string           `json:"status"`
-	CreatedAt time.Time        `json:"created_at"`
-	UpdatedAt time.Time        `json:"updated_at"`
-	Input     JobRequest       `json:"input"`
-	Result    interface{}      `json:"result,omitempty"`
-	Published *publisher.Result `json:"published,omitempty"`
-	Error     string           `json:"error,omitempty"`
+	ID            string           `json:"id"`
+	Status        string           `json:"status"`
+	StatusMessage string           `json:"status_message,omitempty"`
+	CreatedAt     time.Time        `json:"created_at"`
+	UpdatedAt     time.Time        `json:"updated_at"`
+	Input         JobRequest       `json:"input"`
+	Result        interface{}      `json:"result,omitempty"`
+	Published     *publisher.Result `json:"published,omitempty"`
+	Error         string           `json:"error,omitempty"`
 }
 
 // JobRequest holds the input parameters for a job
@@ -85,7 +86,7 @@ func (s *Server) runJob(job *Job) {
 	fmt.Println()
 	ui.PrintInfo("Starting job %s [%s] %s", job.ID, job.Input.Skill, job.Input.URL)
 
-	s.setStatus(job, "scraping")
+	s.setStatus(job, "scraping", "Crawling site...")
 
 	targetURL := job.Input.URL
 	name := job.Input.Name
@@ -138,17 +139,41 @@ func (s *Server) runJob(job *Job) {
 
 	var renderResult *render.Result
 
-	if job.Input.Skill == "all" {
-		// Combined mode: run all skills
-		s.setStatus(job, "analyzing")
+	// Parse skills to determine mode
+	skills := engine.ParseSkills(job.Input.Skill)
+	usesCombined := len(skills) > 1
 
-		fullResult, err := engine.RunAll(cfg)
-		if err != nil {
-			s.failJob(job, fmt.Sprintf("analysis failed: %s", err))
-			return
+	if usesCombined {
+		// Combined mode: run multiple skills
+		for _, skillName := range skills {
+			s.setStatus(job, "analyzing", engine.SkillStatusMessage(skillName))
+			cfg.Skill = skillName
+			// RunSkills handles the iteration, but we want per-skill status updates,
+			// so we run them individually below within the RunSkills call
 		}
 
-		s.setStatus(job, "rendering")
+		// Reset and run all at once (RunSkills handles iteration)
+		s.setStatus(job, "analyzing", engine.SkillStatusMessage(skills[0]))
+
+		fullResult := &engine.FullResult{}
+		for _, skillName := range skills {
+			s.setStatus(job, "analyzing", engine.SkillStatusMessage(skillName))
+			cfg.Skill = skillName
+			result, err := engine.Run(cfg)
+			sr := &engine.SkillResult{SessionID: ""}
+			if err != nil {
+				skill, _ := engine.LoadSkill(skillName)
+				sr.Skill = skill
+				sr.Error = err.Error()
+			} else {
+				sr.Skill = result.Skill
+				sr.RawOutput = result.RawOutput
+				sr.SessionID = result.SessionID
+			}
+			fullResult.Skills = append(fullResult.Skills, sr)
+		}
+
+		s.setStatus(job, "rendering", "Generating report...")
 
 		combinedCfg := render.CombinedConfig{
 			SiteURL:   targetURL,
@@ -223,7 +248,9 @@ func (s *Server) runJob(job *Job) {
 		}
 	} else {
 		// Single skill mode
-		s.setStatus(job, "analyzing")
+		skillName := skills[0]
+		s.setStatus(job, "analyzing", engine.SkillStatusMessage(skillName))
+		cfg.Skill = skillName
 
 		result, err := engine.Run(cfg)
 		if err != nil {
@@ -231,7 +258,7 @@ func (s *Server) runJob(job *Job) {
 			return
 		}
 
-		s.setStatus(job, "rendering")
+		s.setStatus(job, "rendering", "Generating report...")
 
 		switch result.Skill.Output {
 		case "report":
@@ -302,7 +329,7 @@ func (s *Server) runJob(job *Job) {
 	}
 
 	// Phase 4: Publish
-	s.setStatus(job, "publishing")
+	s.setStatus(job, "publishing", "Publishing report...")
 
 	pub := s.createPublisher(name)
 	pubResult, err := pub.Publish(renderResult.HTMLPath, renderResult.JSONPath)
@@ -314,6 +341,7 @@ func (s *Server) runJob(job *Job) {
 	s.mu.Lock()
 	job.Published = pubResult
 	job.Status = "completed"
+	job.StatusMessage = ""
 	job.UpdatedAt = time.Now()
 	s.mu.Unlock()
 
@@ -338,10 +366,27 @@ func (s *Server) createPublisher(siteName string) publisher.Publisher {
 	}
 }
 
-// setStatus updates a job's status under lock
-func (s *Server) setStatus(job *Job, status string) {
+// createLister returns a Lister based on server config
+func (s *Server) createLister() publisher.Lister {
+	switch s.config.Publish {
+	case "s3":
+		pub, err := publisher.NewS3(s.config.S3Bucket, s.config.S3Region, s.config.S3Endpoint, "")
+		if err != nil {
+			return publisher.NewLocal()
+		}
+		return pub
+	default:
+		return publisher.NewLocal()
+	}
+}
+
+// setStatus updates a job's status and optional message under lock
+func (s *Server) setStatus(job *Job, status string, message ...string) {
 	s.mu.Lock()
 	job.Status = status
+	if len(message) > 0 {
+		job.StatusMessage = message[0]
+	}
 	job.UpdatedAt = time.Now()
 	s.mu.Unlock()
 }

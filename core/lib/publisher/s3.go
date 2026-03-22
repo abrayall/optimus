@@ -98,3 +98,70 @@ func (p *S3Publisher) url(key string) string {
 	}
 	return fmt.Sprintf("https://%s.s3.%s.amazonaws.com/%s", p.bucket, p.region, key)
 }
+
+// ListScans enumerates all sites, timestamps, and report files in the bucket
+func (p *S3Publisher) ListScans() ([]SiteScans, error) {
+	ctx := context.Background()
+
+	// List site prefixes (top-level "directories")
+	sitesOut, err := p.client.ListObjectsV2(ctx, &s3.ListObjectsV2Input{
+		Bucket:    aws.String(p.bucket),
+		Delimiter: aws.String("/"),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("listing sites: %w", err)
+	}
+
+	var sites []SiteScans
+	for _, prefix := range sitesOut.CommonPrefixes {
+		siteName := strings.TrimSuffix(*prefix.Prefix, "/")
+
+		// List timestamp prefixes under this site
+		tsOut, err := p.client.ListObjectsV2(ctx, &s3.ListObjectsV2Input{
+			Bucket:    aws.String(p.bucket),
+			Prefix:    prefix.Prefix,
+			Delimiter: aws.String("/"),
+		})
+		if err != nil {
+			continue
+		}
+
+		site := SiteScans{Name: siteName}
+		for _, tsPrefix := range tsOut.CommonPrefixes {
+			tsStr := strings.TrimSuffix(strings.TrimPrefix(*tsPrefix.Prefix, siteName+"/"), "/")
+			ts, err := time.Parse("2006-01-02-150405", tsStr)
+			if err != nil {
+				ts = time.Time{}
+			}
+
+			// List files under this timestamp
+			filesOut, err := p.client.ListObjectsV2(ctx, &s3.ListObjectsV2Input{
+				Bucket: aws.String(p.bucket),
+				Prefix: tsPrefix.Prefix,
+			})
+			if err != nil {
+				continue
+			}
+
+			entry := ScanEntry{ID: tsStr, Timestamp: ts}
+			for _, obj := range filesOut.Contents {
+				name := strings.TrimPrefix(*obj.Key, *tsPrefix.Prefix)
+				if name == "" {
+					continue
+				}
+				entry.Reports = append(entry.Reports, ReportFile{
+					Name: name,
+					URL:  p.url(*obj.Key),
+				})
+			}
+			if len(entry.Reports) > 0 {
+				site.Scans = append(site.Scans, entry)
+			}
+		}
+		if len(site.Scans) > 0 {
+			sites = append(sites, site)
+		}
+	}
+
+	return sites, nil
+}

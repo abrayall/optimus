@@ -1,0 +1,22 @@
+{{ template "header" . }}
+
+    <!-- Reports Section -->
+    <section class="reports-section">
+        <div class="container">
+            <div class="section-header">
+                <span class="section-tag">Reports</span>
+                <h2>Published Reports</h2>
+                <p>Browse all reports organized by site.</p>
+            </div>
+
+            <div id="reportsContent">
+                <div class="reports-loading">
+                    <i class="fas fa-circle-notch fa-spin"></i>
+                    <p>Loading reports...</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <script src="/static/js/reports.js"></script>
+{{ template "footer" . }}

@@ -55,6 +55,34 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// handleScan renders the scan page
+func (s *Server) handleScan(w http.ResponseWriter, r *http.Request) {
+	data := PageData{
+		Title:       "Scan",
+		Description: "Run a custom SEO and AEO audit with selected analysis skills.",
+		HeaderSolid: true,
+		Year:        time.Now().Year(),
+		Version:     Version,
+	}
+	if err := templates.ExecuteTemplate(w, "scan.html", data); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+}
+
+// handleReports renders the reports browser page
+func (s *Server) handleReports(w http.ResponseWriter, r *http.Request) {
+	data := PageData{
+		Title:       "Reports",
+		Description: "Browse published reports.",
+		HeaderSolid: true,
+		Year:        time.Now().Year(),
+		Version:     Version,
+	}
+	if err := templates.ExecuteTemplate(w, "reports.html", data); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+}
+
 // handleBlog renders the blog page
 func (s *Server) handleBlog(w http.ResponseWriter, r *http.Request) {
 	data := PageData{

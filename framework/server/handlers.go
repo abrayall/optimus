@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"optimus/core/lib/engine"
+	"optimus/core/lib/publisher"
 )
 
 // handleHealth responds with a simple health check
@@ -54,14 +55,16 @@ func (s *Server) handleCreateJob(w http.ResponseWriter, r *http.Request) {
 	req.URL = normalizeURL(req.URL)
 	req.setDefaults()
 
-	// Validate skill ("all" is a valid meta-skill that runs everything)
+	// Validate skill(s) — supports "all" and comma-separated (e.g. "seo,aeo,rank")
 	if req.Skill != "all" {
-		if _, err := engine.LoadSkill(req.Skill); err != nil {
-			writeJSON(w, http.StatusBadRequest, map[string]string{
-				"error":  "unknown skill: " + req.Skill,
-				"skills": "all, " + joinSkills(),
-			})
-			return
+		for _, sk := range engine.ParseSkills(req.Skill) {
+			if _, err := engine.LoadSkill(sk); err != nil {
+				writeJSON(w, http.StatusBadRequest, map[string]string{
+					"error":  "unknown skill: " + sk,
+					"skills": "all, " + joinSkills(),
+				})
+				return
+			}
 		}
 	}
 
@@ -148,6 +151,20 @@ func (s *Server) handleDeleteJob(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
+}
+
+// handleListReports returns all published reports grouped by site
+func (s *Server) handleListReports(w http.ResponseWriter, r *http.Request) {
+	lister := s.createLister()
+	sites, err := lister.ListScans()
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	if sites == nil {
+		sites = []publisher.SiteScans{}
+	}
+	writeJSON(w, http.StatusOK, map[string]interface{}{"sites": sites})
 }
 
 // writeJSON marshals v as JSON and writes it to w
