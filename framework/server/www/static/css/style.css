@@ -1739,6 +1739,7 @@ img {
 
     .hero-form-row .btn {
         width: 100%;
+        justify-content: center;
     }
 
     .hero-stats {
