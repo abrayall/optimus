@@ -273,13 +273,19 @@ func ParseReport(text string) (*Report, error) {
 
 // ParseFiles extracts the JSON array of file entries from Claude's text output
 func ParseFiles(text string) ([]FileEntry, error) {
+	text = stripCodeFences(text)
 	text = strings.TrimSpace(text)
 
 	// Try to find JSON array in the text
 	start := strings.Index(text, "[")
-	end := strings.LastIndex(text, "]")
-	if start == -1 || end == -1 || end <= start {
+	if start == -1 {
 		return nil, fmt.Errorf("no JSON array found in output")
+	}
+
+	// Find the matching closing bracket by tracking nesting and strings
+	end := findMatchingBracket(text, start)
+	if end == -1 {
+		return nil, fmt.Errorf("no matching ] found in output")
 	}
 
 	jsonStr := text[start : end+1]
@@ -290,6 +296,61 @@ func ParseFiles(text string) ([]FileEntry, error) {
 	}
 
 	return files, nil
+}
+
+// stripCodeFences removes markdown code fences (```json ... ``` or ``` ... ```) from text
+func stripCodeFences(text string) string {
+	lines := strings.Split(text, "\n")
+	var out []string
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "```") {
+			continue
+		}
+		out = append(out, line)
+	}
+	return strings.Join(out, "\n")
+}
+
+// findMatchingBracket finds the closing ] that matches the [ at position start,
+// correctly handling nested brackets and JSON string literals
+func findMatchingBracket(text string, start int) int {
+	depth := 0
+	inString := false
+	escaped := false
+
+	for i := start; i < len(text); i++ {
+		ch := text[i]
+
+		if escaped {
+			escaped = false
+			continue
+		}
+
+		if ch == '\\' && inString {
+			escaped = true
+			continue
+		}
+
+		if ch == '"' {
+			inString = !inString
+			continue
+		}
+
+		if inString {
+			continue
+		}
+
+		if ch == '[' {
+			depth++
+		} else if ch == ']' {
+			depth--
+			if depth == 0 {
+				return i
+			}
+		}
+	}
+	return -1
 }
 
 // ParseScorecard extracts a scorecard JSON object from Claude's text output
