@@ -347,7 +347,7 @@ type FullResult struct {
 
 // AnalysisSkills returns the ordered list of skills to run in "all" mode
 func AnalysisSkills() []string {
-	return []string{"rank", "seo", "aeo", "keywords", "backlinks", "blog"}
+	return []string{"rank", "seo", "aeo", "keywords", "backlinks", "performance", "blog"}
 }
 
 // ParseSkills splits a comma-separated skill string into individual skill names.
@@ -383,6 +383,8 @@ func SkillStatusMessage(skillName string) string {
 		return "Analyzing backlinks..."
 	case "blog":
 		return "Generating blog content..."
+	case "performance":
+		return "Analyzing performance..."
 	default:
 		return fmt.Sprintf("Running %s analysis...", skillName)
 	}
@@ -456,10 +458,11 @@ func Run(cfg Config) (*Result, error) {
 
 // promptData holds the template variables available to skill prompts
 type promptData struct {
-	SiteURL   string
-	PageCount int
-	PageList  string
-	Timestamp string
+	SiteURL         string
+	PageCount       int
+	PageList        string
+	Timestamp       string
+	PerformanceData string
 }
 
 // buildPrompt creates the Claude prompt by rendering a skill template
@@ -470,6 +473,36 @@ func buildPrompt(cfg Config, skill *Skill) string {
 		pageList.WriteString(fmt.Sprintf("- %s (Title: %q, File: %s)\n", page.URL, page.Title, relPath))
 	}
 
+	// Build performance data table if timing info is available
+	var perfData string
+	hasAnyTiming := false
+	for _, page := range cfg.Pages {
+		if page.Timing != nil {
+			hasAnyTiming = true
+			break
+		}
+	}
+	if hasAnyTiming {
+		var perfBuf strings.Builder
+		perfBuf.WriteString("## Performance Metrics (measured during scrape)\n")
+		perfBuf.WriteString("| Page | TTFB | DOM Ready | DOM Complete | Full Load | Total |\n")
+		perfBuf.WriteString("|------|------|-----------|-------------|-----------|-------|\n")
+		for _, page := range cfg.Pages {
+			if page.Timing != nil {
+				t := page.Timing
+				perfBuf.WriteString(fmt.Sprintf("| %s | %s | %s | %s | %s | %s |\n",
+					page.URL,
+					formatDuration(t.TTFB),
+					formatDuration(t.DOMReady),
+					formatDuration(t.DOMComplete),
+					formatDuration(t.FullLoad),
+					formatDuration(t.TotalTime),
+				))
+			}
+		}
+		perfData = perfBuf.String()
+	}
+
 	// Render the template
 	tmpl, err := template.New(skill.Name).Parse(skill.Prompt)
 	if err != nil {
@@ -478,10 +511,11 @@ func buildPrompt(cfg Config, skill *Skill) string {
 	}
 
 	data := promptData{
-		SiteURL:   cfg.SiteURL,
-		PageCount: len(cfg.Pages),
-		PageList:  pageList.String(),
-		Timestamp: time.Now().Format(time.RFC3339),
+		SiteURL:         cfg.SiteURL,
+		PageCount:       len(cfg.Pages),
+		PageList:        pageList.String(),
+		Timestamp:       time.Now().Format(time.RFC3339),
+		PerformanceData: perfData,
 	}
 
 	var buf bytes.Buffer
@@ -781,6 +815,17 @@ func runClaude(prompt string, skill *Skill, workDir string, logPath string, mcpC
 	logf("[DONE] Claude finished successfully")
 
 	return finalText.String(), sessionID, nil
+}
+
+// formatDuration formats a time.Duration for the performance table (e.g. "245ms", "1.2s")
+func formatDuration(d time.Duration) string {
+	if d == 0 {
+		return "-"
+	}
+	if d < time.Second {
+		return fmt.Sprintf("%dms", d.Milliseconds())
+	}
+	return fmt.Sprintf("%.1fs", d.Seconds())
 }
 
 // computeSummary calculates summary statistics from recommendations

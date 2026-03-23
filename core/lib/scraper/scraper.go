@@ -2,6 +2,7 @@ package scraper
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/url"
 	"os"
@@ -24,6 +25,15 @@ type Config struct {
 	MaxDepth  int
 }
 
+// PageTiming holds Navigation Timing API metrics captured during scraping
+type PageTiming struct {
+	TTFB        time.Duration // responseStart - fetchStart
+	DOMReady    time.Duration // domInteractive - fetchStart
+	DOMComplete time.Duration // domComplete - fetchStart
+	FullLoad    time.Duration // loadEventEnd - fetchStart
+	TotalTime   time.Duration // Go-level wall clock for the whole scrape
+}
+
 // PageResult holds the scraped data for a single page
 type PageResult struct {
 	URL       string
@@ -31,6 +41,7 @@ type PageResult struct {
 	HTML      string
 	CleanHTML string
 	FilePath  string // path to saved content file
+	Timing    *PageTiming
 }
 
 // Result holds scraper output
@@ -190,6 +201,8 @@ func scrapePage(ctx context.Context, pageURL string) (*PageResult, []string, err
 	var renderedHTML string
 	var title string
 
+	wallStart := time.Now()
+
 	err := chromedp.Run(ctx,
 		chromedp.Navigate(pageURL),
 		chromedp.WaitReady("body"),
@@ -199,6 +212,41 @@ func scrapePage(ctx context.Context, pageURL string) (*PageResult, []string, err
 	)
 	if err != nil {
 		return nil, nil, fmt.Errorf("rendering %s: %w", pageURL, err)
+	}
+
+	// Capture Navigation Timing API metrics
+	var timingJSON string
+	if err2 := chromedp.Run(ctx,
+		chromedp.Evaluate(`JSON.stringify((function(){
+			var e = performance.getEntriesByType('navigation')[0];
+			if (!e) return null;
+			return {
+				ttfb: e.responseStart - e.fetchStart,
+				domReady: e.domInteractive - e.fetchStart,
+				domComplete: e.domComplete - e.fetchStart,
+				fullLoad: e.loadEventEnd - e.fetchStart
+			};
+		})())`, &timingJSON),
+	); err2 == nil {
+		// best-effort — ignore errors
+	}
+
+	wallElapsed := time.Since(wallStart)
+
+	timing := &PageTiming{TotalTime: wallElapsed}
+	if timingJSON != "" && timingJSON != "null" {
+		var raw struct {
+			TTFB        float64 `json:"ttfb"`
+			DOMReady    float64 `json:"domReady"`
+			DOMComplete float64 `json:"domComplete"`
+			FullLoad    float64 `json:"fullLoad"`
+		}
+		if err2 := json.Unmarshal([]byte(timingJSON), &raw); err2 == nil {
+			timing.TTFB = time.Duration(raw.TTFB * float64(time.Millisecond))
+			timing.DOMReady = time.Duration(raw.DOMReady * float64(time.Millisecond))
+			timing.DOMComplete = time.Duration(raw.DOMComplete * float64(time.Millisecond))
+			timing.FullLoad = time.Duration(raw.FullLoad * float64(time.Millisecond))
+		}
 	}
 
 	if title == "" {
@@ -216,6 +264,7 @@ func scrapePage(ctx context.Context, pageURL string) (*PageResult, []string, err
 		Title:     title,
 		HTML:      renderedHTML,
 		CleanHTML: cleanedHTML,
+		Timing:    timing,
 	}, links, nil
 }
 

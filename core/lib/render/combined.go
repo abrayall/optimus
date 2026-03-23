@@ -93,6 +93,7 @@ func GenerateCombined(cfg CombinedConfig) (*Result, error) {
 		{"aeo", "AEO", cfg.Reports["aeo"] != nil || cfg.Errors["aeo"] != ""},
 		{"keywords", "Keywords", cfg.Files["keywords"] != nil || cfg.Errors["keywords"] != ""},
 		{"backlinks", "Backlinks", cfg.Backlinks != nil || cfg.Errors["backlinks"] != ""},
+		{"performance", "Performance", cfg.Reports["performance"] != nil || cfg.Errors["performance"] != ""},
 		{"blog", "Blog", cfg.Files["blog"] != nil || cfg.Errors["blog"] != ""},
 	}
 	for _, st := range skillTabs {
@@ -997,6 +998,55 @@ var combinedHTMLTemplate = `<!DOCTYPE html>
                     <div class="opp-desc">{{$opp.Description}}</div>
                     {{if $opp.TargetURL}}<div class="opp-target">Target: <a href="{{$opp.TargetURL}}">{{$opp.TargetURL}}</a></div>{{end}}
                     {{if $opp.Steps}}<ol class="opp-steps">{{range $opp.Steps}}<li>{{.}}</li>{{end}}</ol>{{end}}
+                </div>
+                {{end}}
+            </div>
+            {{end}}
+            {{end}}
+        </div>
+        {{end}}
+
+        <!-- ===== Performance Tab ===== -->
+        {{if or (hasReport "performance") (hasError "performance")}}
+        <div class="tab-panel" id="tab-performance">
+            {{if hasError "performance"}}
+            <div class="error-card">
+                <h3>Performance Analysis Failed</h3>
+                <p>{{getError "performance"}}</p>
+            </div>
+            {{else}}
+            {{with getReport "performance"}}
+            <div class="summary">
+                <div class="summary-card total"><div class="number">{{.Summary.TotalIssues}}</div><div class="label">Total Issues</div></div>
+                <div class="summary-card critical"><div class="number">{{.Summary.CriticalCount}}</div><div class="label">Critical</div></div>
+                <div class="summary-card high"><div class="number">{{.Summary.HighCount}}</div><div class="label">High</div></div>
+                <div class="summary-card medium"><div class="number">{{.Summary.MediumCount}}</div><div class="label">Medium</div></div>
+                <div class="summary-card low"><div class="number">{{.Summary.LowCount}}</div><div class="label">Low</div></div>
+            </div>
+            <div class="filters">
+                <button class="filter-btn active" onclick="filterRecs('all', 'performance')">All</button>
+                <button class="filter-btn" onclick="filterRecs('critical', 'performance')"><span class="filter-dot" style="background:#EF4444"></span>Critical</button>
+                <button class="filter-btn" onclick="filterRecs('high', 'performance')"><span class="filter-dot" style="background:#F97316"></span>High</button>
+                <button class="filter-btn" onclick="filterRecs('medium', 'performance')"><span class="filter-dot" style="background:#0090C1"></span>Medium</button>
+                <button class="filter-btn" onclick="filterRecs('low', 'performance')"><span class="filter-dot" style="background:#ADEEE3"></span>Low</button>
+            </div>
+            <div class="recommendations" id="recs-performance">
+                {{range $i, $rec := .Recommendations}}
+                <div class="rec-card" data-priority="{{$rec.Priority}}">
+                    <div class="rec-header" onclick="toggleRec(this)">
+                        <span class="chevron">&#9654;</span>
+                        <div class="rec-tags">
+                            <span class="rec-priority" style="background: {{priorityColor $rec.Priority}}22; color: {{priorityColor $rec.Priority}}">{{upper $rec.Priority}}</span>
+                            <span class="rec-category">{{$rec.Category}}</span>
+                        </div>
+                        <span class="rec-issue">{{$rec.Issue}}</span>
+                        <span class="rec-url" title="{{$rec.URL}}">{{$rec.URL}}</span>
+                    </div>
+                    <div class="rec-details">
+                        {{if $rec.CurrentText}}<div class="rec-section"><div class="rec-section-title">Current</div><div class="current-text">{{$rec.CurrentText}}</div></div>{{end}}
+                        {{if $rec.Suggestions}}<div class="rec-section"><div class="rec-section-title">Suggested Changes</div>{{range $j, $sug := $rec.Suggestions}}<div class="suggestion"><span class="suggestion-number">Option {{add $j 1}}:</span>{{$sug}}</div>{{end}}</div>{{end}}
+                        {{if $rec.Impact}}<div class="rec-section"><div class="rec-section-title">Expected Impact</div><div class="impact">{{$rec.Impact}}</div></div>{{end}}
+                    </div>
                 </div>
                 {{end}}
             </div>

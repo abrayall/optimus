@@ -151,8 +151,8 @@
                 return;
             }
 
-            // If all 6 are selected, use "all"
-            var skillValue = selectedSkills.length === 6 ? 'all' : selectedSkills.join(',');
+            // If all 7 are selected, use "all"
+            var skillValue = selectedSkills.length === 7 ? 'all' : selectedSkills.join(',');
 
             showScanStatus();
 

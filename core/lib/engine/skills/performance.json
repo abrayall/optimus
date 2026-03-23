@@ -1,0 +1,5 @@
+{
+  "name": "Performance Analysis",
+  "description": "Analyzes website for performance issues and optimization opportunities",
+  "output": "report"
+}
